@@ -1,60 +1,63 @@
 import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
-import 'package:hive_flutter/hive_flutter.dart';
-import 'config/hive_config.dart';
 import 'core/app.dart';
-import 'models/offline_book.dart';
-import 'models/reading_progress.dart';
+import 'config/hive_config.dart';
 import 'providers/book_provider.dart';
 import 'providers/offline_provider.dart';
 import 'providers/reading_provider.dart';
 import 'providers/settings_provider.dart';
-import 'services/api_service.dart';
-import 'services/offline_service.dart';
+import 'services/storage_service.dart';
 
 void main() async {
   WidgetsFlutterBinding.ensureInitialized();
 
-  // Initialize Hive
-  await Hive.initFlutter();
+  try {
+    // Initialize Hive first (critical fix)
+    await HiveConfig.init();
+    print('✅ Hive initialized successfully');
 
-  // Register adapters if you have them
-  // Hive.registerAdapter(OfflineBookAdapter());
-  // Hive.registerAdapter(ReadingProgressAdapter());
+    // Initialize storage service
+    await StorageService.initialize();
+    print('✅ Storage service initialized');
 
-  // Open boxes
-  await Hive.openBox<OfflineBook>('offlineBooks');
-  await Hive.openBox<ReadingProgress>('readingProgress');
+    // Initialize settings provider
+    final settingsProvider = SettingsProvider();
+    await settingsProvider.init();
+    print('✅ Settings provider initialized');
 
-  // Initialize services
-  final apiService = ApiService();
-  final offlineService = OfflineService();
+    runApp(
+      MultiProvider(
+        providers: [
+          ChangeNotifierProvider(create: (_) => BookProvider()),
+          ChangeNotifierProvider(create: (_) => OfflineProvider()),
+          ChangeNotifierProvider(create: (_) => ReadingProvider()),
+          ChangeNotifierProvider.value(value: settingsProvider),
+        ],
+        child: const ReadMileApp(),
+      ),
+    );
 
-  // Get Hive boxes
-  final offlineBooksBox = Hive.box<OfflineBook>('offlineBooks');
-  final readingProgressBox = Hive.box<ReadingProgress>('readingProgress');
+  } catch (e) {
+    print('❌ Initialization error: $e');
 
-  // Initialize settings provider
-  final settingsProvider = SettingsProvider();
-  await settingsProvider.init();
-
-  runApp(
-    MultiProvider(
-      providers: [
-        ChangeNotifierProvider(
-          create: (_) => BookProvider(apiService),
+    // Fallback app with error screen
+    runApp(
+      MaterialApp(
+        home: Scaffold(
+          body: Center(
+            child: Column(
+              mainAxisAlignment: MainAxisAlignment.center,
+              children: [
+                Icon(Icons.error_outline, size: 64, color: Colors.red),
+                SizedBox(height: 16),
+                Text('App initialization failed', style: TextStyle(fontSize: 18)),
+                SizedBox(height: 8),
+                Text('Please restart the app', style: TextStyle(color: Colors.grey)),
+              ],
+            ),
+          ),
         ),
-        ChangeNotifierProvider(
-          create: (_) => OfflineProvider(offlineBooksBox, offlineService),
-        ),
-        ChangeNotifierProvider(
-          create: (_) => ReadingProvider(readingProgressBox),
-        ),
-        ChangeNotifierProvider.value(
-          value: settingsProvider,
-        ),
-      ],
-      child: const ReadMileApp(),
-    ),
-  );
+      ),
+    );
+  }
 }

@@ -24,11 +24,67 @@ class _SplashScreenState extends State<SplashScreen>
   bool _hasError = false;
   String _errorMessage = '';
 
+  // Performance optimization: Define colors as static constants
+  static const Color _primaryColor = Color(0xFF730000);
+  static const Color _secondaryColor = Color(0xFFC5A880);
+  static const Color _whiteTransparent = Color(0x1AFFFFFF);
+  static const Color _whiteTransparent2 = Color(0x33FFFFFF);
+
+  // Performance optimization: Pre-define text styles
+  static const TextStyle _titleStyle = TextStyle(
+    fontSize: 42,
+    fontWeight: FontWeight.bold,
+    color: Colors.white,
+    letterSpacing: 2,
+  );
+
+  static const TextStyle _subtitleStyle = TextStyle(
+    fontSize: 16,
+    color: Color(0xCCFFFFFF), // 80% white opacity
+    letterSpacing: 1,
+  );
+
+  static const TextStyle _loadingStyle = TextStyle(
+    fontSize: 16,
+    color: Color(0xE6FFFFFF), // 90% white opacity
+  );
+
+  static const TextStyle _errorStyle = TextStyle(
+    fontSize: 14,
+    color: Colors.white,
+    height: 1.4,
+  );
+
+  static const TextStyle _versionStyle = TextStyle(
+    fontSize: 12,
+    color: Color(0x99FFFFFF), // 60% white opacity
+  );
+
+  static const TextStyle _buttonStyle = TextStyle(
+    color: Colors.white,
+    fontWeight: FontWeight.bold,
+  );
+
+  // Performance optimization: Pre-define decorations
+  static final BoxDecoration _logoContainerDecoration = BoxDecoration(
+    color: _whiteTransparent,
+    borderRadius: BorderRadius.circular(100),
+  );
+
+  static final BoxDecoration _errorContainerDecoration = BoxDecoration(
+    color: _whiteTransparent,
+    borderRadius: BorderRadius.circular(12),
+    border: Border.all(color: _whiteTransparent2),
+  );
+
   @override
   void initState() {
     super.initState();
     _setupAnimations();
-    _initializeApp();
+    // FIXED: Delay initialization to avoid setState during build
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      _initializeApp();
+    });
   }
 
   void _setupAnimations() {
@@ -58,34 +114,39 @@ class _SplashScreenState extends State<SplashScreen>
 
   Future<void> _initializeApp() async {
     try {
-      // Get providers
+      // Get providers safely
       final bookProvider = Provider.of<BookProvider>(context, listen: false);
       final readingProvider = Provider.of<ReadingProvider>(context, listen: false);
       final offlineProvider = Provider.of<OfflineProvider>(context, listen: false);
 
-      // Step 1: Initialize reading and offline data
+      // Step 1: Initialize reading and offline data first
       _updateLoadingText('Loading your reading progress...');
       await Future.wait([
         readingProvider.initialize(),
         offlineProvider.initialize(),
       ]);
 
-      // Step 2: Load books from MongoDB
+      // Step 2: Load books from MongoDB with network error handling
       _updateLoadingText('Connecting to your library...');
-      await bookProvider.loadBooks();
+      try {
+        await bookProvider.loadBooks();
+      } catch (e) {
+        print('⚠️ Network error, continuing with offline data: $e');
+        // Continue with offline data if network fails
+      }
 
       // Step 3: Final setup
       _updateLoadingText('Setting up your library...');
       await Future.delayed(const Duration(milliseconds: 500));
 
-      // Navigate to home screen - FIXED: Remove books parameter
+      // Navigate to home screen
       if (mounted) {
         _updateLoadingText('Welcome to ReadMile!');
         await Future.delayed(const Duration(milliseconds: 500));
 
         Navigator.of(context).pushReplacement(
           MaterialPageRoute(
-            builder: (context) => const HomeScreen(), // REMOVED: books parameter
+            builder: (context) => const HomeScreen(),
           ),
         );
       }
@@ -109,22 +170,13 @@ class _SplashScreenState extends State<SplashScreen>
   }
 
   String _getErrorMessage(String error) {
-    if (error.contains('network') || error.contains('connection')) {
-      return 'Network connection failed.\nPlease check your internet and try again.';
+    if (error.contains('network') || error.contains('connection') || error.contains('SocketException')) {
+      return 'Network connection failed.\nContinuing with offline mode.\n\nTap to retry or continue offline.';
     } else if (error.contains('MongoDB') || error.contains('database')) {
-      return 'Database connection failed.\nPlease try again later.';
+      return 'Database connection failed.\nUsing offline data.\n\nTap to retry or continue offline.';
     } else {
-      return 'Something went wrong.\nPlease restart the app.';
+      return 'An error occurred during initialization.\n\nTap to retry or continue.';
     }
-  }
-
-  Future<void> _retryInitialization() async {
-    setState(() {
-      _hasError = false;
-      _errorMessage = '';
-      _loadingText = 'Retrying...';
-    });
-    await _initializeApp();
   }
 
   @override
@@ -136,172 +188,194 @@ class _SplashScreenState extends State<SplashScreen>
   @override
   Widget build(BuildContext context) {
     return Scaffold(
-      backgroundColor: AppTheme.primaryColor,
+      backgroundColor: _primaryColor,
       body: SafeArea(
-        child: AnimatedBuilder(
-          animation: _animationController,
-          builder: (context, child) {
-            return FadeTransition(
-              opacity: _fadeAnimation,
-              child: ScaleTransition(
-                scale: _scaleAnimation,
-                child: _hasError ? _buildErrorView() : _buildLoadingView(),
+        child: Center(
+          child: Column(
+            mainAxisAlignment: MainAxisAlignment.center,
+            children: [
+              // Logo and branding
+              const _LogoSection(),
+              const SizedBox(height: 80),
+
+              // Loading or Error Section
+              if (!_hasError)
+                _LoadingSection(loadingText: _loadingText)
+              else
+                _ErrorSection(
+                  errorMessage: _errorMessage,
+                  onRetry: () {
+                    setState(() {
+                      _hasError = false;
+                      _loadingText = 'Retrying...';
+                    });
+                    _initializeApp();
+                  },
+                  onContinue: () {
+                    if (mounted) {
+                      Navigator.of(context).pushReplacement(
+                        MaterialPageRoute(
+                          builder: (context) => const HomeScreen(),
+                        ),
+                      );
+                    }
+                  },
+                ),
+
+              const SizedBox(height: 40),
+
+              // Version info
+              const Text(
+                'Version 1.0.0',
+                style: _versionStyle,
               ),
-            );
-          },
+            ],
+          ),
         ),
       ),
     );
   }
+}
 
-  Widget _buildLoadingView() {
-    return Center(
-      child: Column(
-        mainAxisAlignment: MainAxisAlignment.center,
-        children: [
-          // App Logo/Title
-          Container(
-            padding: const EdgeInsets.all(24),
-            decoration: BoxDecoration(
-              color: Colors.white.withOpacity(0.1),
-              borderRadius: BorderRadius.circular(20),
-              border: Border.all(
-                color: AppTheme.accentColor.withOpacity(0.3),
-                width: 2,
-              ),
-            ),
-            child: const Text(
-              AppConstants.appName,
-              style: TextStyle(
-                fontSize: 48,
-                color: AppTheme.accentColor,
-                fontWeight: FontWeight.bold,
-                letterSpacing: 2,
-              ),
-            ),
-          ),
+// Performance optimization: Extract logo section as separate widget
+class _LogoSection extends StatelessWidget {
+  const _LogoSection();
 
-          const SizedBox(height: 16),
-
-          // App tagline
-          Text(
-            AppConstants.appTagline,
-            style: TextStyle(
-              color: Colors.white.withOpacity(0.8),
-              fontSize: 16,
-              fontStyle: FontStyle.italic,
-            ),
-          ),
-
-          const SizedBox(height: 60),
-
-          // Loading indicator
-          const CircularProgressIndicator(
-            valueColor: AlwaysStoppedAnimation<Color>(AppTheme.accentColor),
-            strokeWidth: 3,
-          ),
-
-          const SizedBox(height: 24),
-
-          // Loading text with animation
-          AnimatedSwitcher(
-            duration: const Duration(milliseconds: 300),
-            child: Text(
-              _loadingText,
-              key: ValueKey(_loadingText),
-              style: const TextStyle(
-                color: Colors.white,
-                fontSize: 16,
-                fontWeight: FontWeight.w500,
-              ),
-              textAlign: TextAlign.center,
-            ),
-          ),
-
-          const SizedBox(height: 100),
-
-          // Version info
-          Text(
-            'Version ${AppConstants.appVersion}',
-            style: TextStyle(
-              color: Colors.white.withOpacity(0.6),
-              fontSize: 12,
-            ),
-          ),
-        ],
-      ),
-    );
-  }
-
-  Widget _buildErrorView() {
-    return Center(
-      child: Padding(
-        padding: const EdgeInsets.all(32),
+  @override
+  Widget build(BuildContext context) {
+    return FadeTransition(
+      opacity: context.findAncestorStateOfType<_SplashScreenState>()!._fadeAnimation,
+      child: ScaleTransition(
+        scale: context.findAncestorStateOfType<_SplashScreenState>()!._scaleAnimation,
         child: Column(
-          mainAxisAlignment: MainAxisAlignment.center,
           children: [
-            // Error icon
             Container(
-              padding: const EdgeInsets.all(16),
-              decoration: BoxDecoration(
-                color: Colors.white.withOpacity(0.1),
-                borderRadius: BorderRadius.circular(50),
-              ),
+              padding: const EdgeInsets.all(32),
+              decoration: _SplashScreenState._logoContainerDecoration,
               child: const Icon(
-                Icons.error_outline,
-                size: 48,
-                color: Colors.white,
+                Icons.menu_book,
+                size: 80,
+                color: _SplashScreenState._secondaryColor,
               ),
             ),
-
-            const SizedBox(height: 24),
-
-            // App name
+            const SizedBox(height: 32),
             const Text(
-              AppConstants.appName,
-              style: TextStyle(
-                fontSize: 32,
-                color: AppTheme.accentColor,
-                fontWeight: FontWeight.bold,
-              ),
+              'ReadMile',
+              style: _SplashScreenState._titleStyle,
             ),
-
-            const SizedBox(height: 32),
-
-            // Error message
-            Text(
-              _errorMessage,
-              style: const TextStyle(
-                color: Colors.white,
-                fontSize: 16,
-                height: 1.5,
-              ),
-              textAlign: TextAlign.center,
-            ),
-
-            const SizedBox(height: 32),
-
-            // Retry button
-            ElevatedButton.icon(
-              onPressed: _retryInitialization,
-              icon: const Icon(Icons.refresh, color: AppTheme.primaryColor),
-              label: const Text(
-                'Try Again',
-                style: TextStyle(
-                  color: AppTheme.primaryColor,
-                  fontWeight: FontWeight.bold,
-                ),
-              ),
-              style: ElevatedButton.styleFrom(
-                backgroundColor: AppTheme.accentColor,
-                padding: const EdgeInsets.symmetric(horizontal: 32, vertical: 16),
-                shape: RoundedRectangleBorder(
-                  borderRadius: BorderRadius.circular(25),
-                ),
-              ),
+            const SizedBox(height: 8),
+            const Text(
+              'Your Digital Library',
+              style: _SplashScreenState._subtitleStyle,
             ),
           ],
         ),
+      ),
+    );
+  }
+}
+
+// Performance optimization: Extract loading section
+class _LoadingSection extends StatelessWidget {
+  final String loadingText;
+
+  const _LoadingSection({required this.loadingText});
+
+  @override
+  Widget build(BuildContext context) {
+    return Column(
+      children: [
+        const SizedBox(
+          width: 40,
+          height: 40,
+          child: CircularProgressIndicator(
+            valueColor: AlwaysStoppedAnimation<Color>(_SplashScreenState._secondaryColor),
+            strokeWidth: 3,
+          ),
+        ),
+        const SizedBox(height: 24),
+        Text(
+          loadingText,
+          style: _SplashScreenState._loadingStyle,
+          textAlign: TextAlign.center,
+        ),
+      ],
+    );
+  }
+}
+
+// Performance optimization: Extract error section
+class _ErrorSection extends StatelessWidget {
+  final String errorMessage;
+  final VoidCallback onRetry;
+  final VoidCallback onContinue;
+
+  const _ErrorSection({
+    required this.errorMessage,
+    required this.onRetry,
+    required this.onContinue,
+  });
+
+  @override
+  Widget build(BuildContext context) {
+    return Container(
+      margin: const EdgeInsets.symmetric(horizontal: 32),
+      padding: const EdgeInsets.all(24),
+      decoration: _SplashScreenState._errorContainerDecoration,
+      child: Column(
+        children: [
+          const Icon(
+            Icons.warning_amber_rounded,
+            color: _SplashScreenState._secondaryColor,
+            size: 48,
+          ),
+          const SizedBox(height: 16),
+          Text(
+            errorMessage,
+            style: _SplashScreenState._errorStyle,
+            textAlign: TextAlign.center,
+          ),
+          const SizedBox(height: 24),
+          Row(
+            children: [
+              Expanded(
+                child: ElevatedButton(
+                  onPressed: onRetry,
+                  style: ElevatedButton.styleFrom(
+                    backgroundColor: _SplashScreenState._secondaryColor,
+                    padding: const EdgeInsets.symmetric(vertical: 12),
+                    elevation: 2,
+                    shape: RoundedRectangleBorder(
+                      borderRadius: BorderRadius.circular(8),
+                    ),
+                  ),
+                  child: const Text(
+                    'Retry',
+                    style: _SplashScreenState._buttonStyle,
+                  ),
+                ),
+              ),
+              const SizedBox(width: 12),
+              Expanded(
+                child: ElevatedButton(
+                  onPressed: onContinue,
+                  style: ElevatedButton.styleFrom(
+                    backgroundColor: _SplashScreenState._whiteTransparent2,
+                    padding: const EdgeInsets.symmetric(vertical: 12),
+                    elevation: 1,
+                    shape: RoundedRectangleBorder(
+                      borderRadius: BorderRadius.circular(8),
+                    ),
+                  ),
+                  child: const Text(
+                    'Continue Offline',
+                    style: _SplashScreenState._buttonStyle,
+                  ),
+                ),
+              ),
+            ],
+          ),
+        ],
       ),
     );
   }

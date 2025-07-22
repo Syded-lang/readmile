@@ -1,168 +1,208 @@
 import 'package:flutter/material.dart';
-import 'package:shared_preferences/shared_preferences.dart';
+import 'package:hive_flutter/hive_flutter.dart';
 
 class SettingsProvider with ChangeNotifier {
-  static const String _fontFamilyKey = 'font_family';
-  static const String _fontSizeKey = 'font_size';
-  static const String _lineHeightKey = 'line_height';
-  static const String _textAlignKey = 'text_align';
-  static const String _themeKey = 'theme';
-  static const String _marginKey = 'margin';
+  static const String _boxName = 'readmile_settings';
 
-  // Default values
-  String _fontFamily = 'Roboto';
-  double _fontSize = 18.0;
-  double _lineHeight = 1.5;
-  TextAlign _textAlign = TextAlign.justify;
+  // Theme settings
   String _theme = 'light';
-  double _margin = 16.0;
+  Color _backgroundColor = Colors.white;
+  Color _textColor = Colors.black;
 
-  SharedPreferences? _prefs;
+  // Reading settings
+  double _fontSize = 16.0;
+  String _fontFamily = 'Georgia';
+  double _lineHeight = 1.5;
+  double _margin = 16.0;
+  TextAlign _textAlign = TextAlign.left;
+
+  // App settings
+  bool _autoSave = true;
+  bool _nightMode = false;
+  double _brightness = 1.0;
 
   // Getters
-  String get fontFamily => _fontFamily;
-  double get fontSize => _fontSize;
-  double get lineHeight => _lineHeight;
-  TextAlign get textAlign => _textAlign;
   String get theme => _theme;
+  Color get backgroundColor => _backgroundColor;
+  Color get textColor => _textColor;
+  double get fontSize => _fontSize;
+  String get fontFamily => _fontFamily;
+  double get lineHeight => _lineHeight;
   double get margin => _margin;
+  TextAlign get textAlign => _textAlign;
+  bool get autoSave => _autoSave;
+  bool get nightMode => _nightMode;
+  double get brightness => _brightness;
 
-  // Available options
-  List<String> get availableFonts => [
-    'Roboto',
-    'Open Sans',
-    'Lato',
-    'Montserrat',
-    'Source Sans Pro',
-    'Noto Sans'
-  ];
-
-  List<String> get availableThemes => ['light', 'sepia', 'dark'];
-
-  // Colors based on theme
-  Color get backgroundColor {
-    switch (_theme) {
-      case 'sepia':
-        return const Color(0xFFF6F0E4);
-      case 'dark':
-        return const Color(0xFF1E1E1E);
-      default:
-        return Colors.white;
-    }
-  }
-
-  Color get textColor {
-    switch (_theme) {
-      case 'dark':
-        return const Color(0xFFE0E0E0);
-      case 'sepia':
-        return const Color(0xFF2C1810);
-      default:
-        return const Color(0xFF212121);
-    }
-  }
-
-  // Initialize and load settings
+  /// Initialize settings from storage
   Future<void> init() async {
-    _prefs = await SharedPreferences.getInstance();
-    await _loadSettings();
+    try {
+      final box = await Hive.openBox(_boxName);
+
+      _theme = box.get('theme', defaultValue: 'light');
+      _fontSize = box.get('fontSize', defaultValue: 16.0);
+      _fontFamily = box.get('fontFamily', defaultValue: 'Georgia');
+      _lineHeight = box.get('lineHeight', defaultValue: 1.5);
+      _margin = box.get('margin', defaultValue: 16.0);
+      _autoSave = box.get('autoSave', defaultValue: true);
+      _nightMode = box.get('nightMode', defaultValue: false);
+      _brightness = box.get('brightness', defaultValue: 1.0);
+
+      // Set text alignment from stored value
+      final alignValue = box.get('textAlign', defaultValue: 'left');
+      _textAlign = _parseTextAlign(alignValue);
+
+      // Update colors based on theme
+      _updateThemeColors();
+
+      print('✅ SettingsProvider initialized');
+    } catch (e) {
+      print('❌ Error initializing SettingsProvider: $e');
+    }
   }
 
-  Future<void> _loadSettings() async {
-    if (_prefs == null) return;
-
-    _fontFamily = _prefs!.getString(_fontFamilyKey) ?? 'Roboto';
-    _fontSize = _prefs!.getDouble(_fontSizeKey) ?? 18.0;
-    _lineHeight = _prefs!.getDouble(_lineHeightKey) ?? 1.5;
-    _textAlign = _getTextAlignFromString(_prefs!.getString(_textAlignKey) ?? 'justify');
-    _theme = _prefs!.getString(_themeKey) ?? 'light';
-    _margin = _prefs!.getDouble(_marginKey) ?? 16.0;
-
+  /// Update theme and colors
+  Future<void> setTheme(String newTheme) async {
+    _theme = newTheme;
+    _updateThemeColors();
+    await _saveSettings();
     notifyListeners();
   }
 
-  TextAlign _getTextAlignFromString(String value) {
+  /// Update font size
+  Future<void> setFontSize(double size) async {
+    _fontSize = size;
+    await _saveSettings();
+    notifyListeners();
+  }
+
+  /// Update font family
+  Future<void> setFontFamily(String family) async {
+    _fontFamily = family;
+    await _saveSettings();
+    notifyListeners();
+  }
+
+  /// Update line height
+  Future<void> setLineHeight(double height) async {
+    _lineHeight = height;
+    await _saveSettings();
+    notifyListeners();
+  }
+
+  /// Update margin
+  Future<void> setMargin(double newMargin) async {
+    _margin = newMargin;
+    await _saveSettings();
+    notifyListeners();
+  }
+
+  /// Update text alignment
+  Future<void> setTextAlign(TextAlign align) async {
+    _textAlign = align;
+    await _saveSettings();
+    notifyListeners();
+  }
+
+  /// Toggle night mode
+  Future<void> toggleNightMode() async {
+    _nightMode = !_nightMode;
+    _theme = _nightMode ? 'dark' : 'light';
+    _updateThemeColors();
+    await _saveSettings();
+    notifyListeners();
+  }
+
+  /// Update brightness
+  Future<void> setBrightness(double newBrightness) async {
+    _brightness = newBrightness;
+    await _saveSettings();
+    notifyListeners();
+  }
+
+  /// Update theme colors based on current theme
+  void _updateThemeColors() {
+    switch (_theme) {
+      case 'dark':
+        _backgroundColor = const Color(0xFF1A1A1A);
+        _textColor = Colors.white;
+        break;
+      case 'sepia':
+        _backgroundColor = const Color(0xFFF4ECD8);
+        _textColor = const Color(0xFF5D4E37);
+        break;
+      case 'night':
+        _backgroundColor = Colors.black;
+        _textColor = const Color(0xFFE0E0E0);
+        break;
+      default: // light
+        _backgroundColor = Colors.white;
+        _textColor = Colors.black;
+    }
+  }
+
+  /// Save settings to Hive storage
+  Future<void> _saveSettings() async {
+    try {
+      final box = await Hive.openBox(_boxName);
+      await box.putAll({
+        'theme': _theme,
+        'fontSize': _fontSize,
+        'fontFamily': _fontFamily,
+        'lineHeight': _lineHeight,
+        'margin': _margin,
+        'textAlign': _textAlign.toString().split('.').last,
+        'autoSave': _autoSave,
+        'nightMode': _nightMode,
+        'brightness': _brightness,
+      });
+    } catch (e) {
+      print('❌ Error saving settings: $e');
+    }
+  }
+
+  /// Parse TextAlign from string
+  TextAlign _parseTextAlign(String value) {
     switch (value) {
-      case 'left':
-        return TextAlign.left;
       case 'center':
         return TextAlign.center;
       case 'right':
         return TextAlign.right;
       case 'justify':
-      default:
         return TextAlign.justify;
-    }
-  }
-
-  String _getStringFromTextAlign(TextAlign align) {
-    switch (align) {
-      case TextAlign.left:
-        return 'left';
-      case TextAlign.center:
-        return 'center';
-      case TextAlign.right:
-        return 'right';
-      case TextAlign.justify:
       default:
-        return 'justify';
+        return TextAlign.left;
     }
   }
 
-  // Update methods
-  Future<void> updateFontFamily(String value) async {
-    _fontFamily = value;
-    await _prefs?.setString(_fontFamilyKey, value);
-    notifyListeners();
-  }
+  /// Get available themes
+  List<String> get availableThemes => ['light', 'dark', 'sepia', 'night'];
 
-  Future<void> updateFontSize(double value) async {
-    _fontSize = value;
-    await _prefs?.setDouble(_fontSizeKey, value);
-    notifyListeners();
-  }
+  /// Get available font families
+  List<String> get availableFontFamilies => [
+    'Georgia',
+    'Times New Roman',
+    'Arial',
+    'Helvetica',
+    'Verdana',
+    'Calibri',
+    'Open Sans',
+  ];
 
-  Future<void> updateLineHeight(double value) async {
-    _lineHeight = value;
-    await _prefs?.setDouble(_lineHeightKey, value);
-    notifyListeners();
-  }
-
-  Future<void> updateTextAlign(TextAlign value) async {
-    _textAlign = value;
-    await _prefs?.setString(_textAlignKey, _getStringFromTextAlign(value));
-    notifyListeners();
-  }
-
-  Future<void> updateTheme(String value) async {
-    _theme = value;
-    await _prefs?.setString(_themeKey, value);
-    notifyListeners();
-  }
-
-  Future<void> updateMargin(double value) async {
-    _margin = value;
-    await _prefs?.setDouble(_marginKey, value);
-    notifyListeners();
-  }
-
+  /// Reset to default settings
   Future<void> resetToDefaults() async {
-    _fontFamily = 'Roboto';
-    _fontSize = 18.0;
-    _lineHeight = 1.5;
-    _textAlign = TextAlign.justify;
     _theme = 'light';
+    _fontSize = 16.0;
+    _fontFamily = 'Georgia';
+    _lineHeight = 1.5;
     _margin = 16.0;
+    _textAlign = TextAlign.left;
+    _autoSave = true;
+    _nightMode = false;
+    _brightness = 1.0;
 
-    if (_prefs != null) {
-      await _prefs!.setString(_fontFamilyKey, _fontFamily);
-      await _prefs!.setDouble(_fontSizeKey, _fontSize);
-      await _prefs!.setDouble(_lineHeightKey, _lineHeight);
-      await _prefs!.setString(_textAlignKey, _getStringFromTextAlign(_textAlign));
-      await _prefs!.setString(_themeKey, _theme);
-      await _prefs!.setDouble(_marginKey, _margin);
-    }
-
+    _updateThemeColors();
+    await _saveSettings();
     notifyListeners();
   }
 }

@@ -7,11 +7,9 @@ class StorageService {
   static const String offlineBooksBoxName = 'offline_books';
   static const String statsBoxName = 'reading_stats';
 
-  // FIXED: Added initialize method
   static Future<void> initialize() async {
-    await Hive.initFlutter();
-    Hive.registerAdapter(ReadingProgressAdapter());
-    Hive.registerAdapter(OfflineBookAdapter());
+    // Don't initialize Hive or register adapters here - HiveConfig already does it
+    // Just open the boxes
     await Hive.openBox<ReadingProgress>(progressBoxName);
     await Hive.openBox<OfflineBook>(offlineBooksBoxName);
     await Hive.openBox(statsBoxName);
@@ -77,7 +75,6 @@ class StorageService {
     await statsBox.clear();
   }
 
-  // FIXED: Added missing methods referenced in offline_service
   static bool isBookOffline(String bookId) {
     final offlineBook = getOfflineBook(bookId);
     return offlineBook != null && offlineBook.isAvailable;

@@ -8,61 +8,46 @@ class ReadingProgress extends HiveObject {
   String bookId;
 
   @HiveField(1)
-  String bookTitle; // Added to match .g.dart
+  int chapterIndex;
 
   @HiveField(2)
-  int currentChapter; // Changed from 'chapterIndex' to match .g.dart
+  double progressPercentage;
 
   @HiveField(3)
-  int totalChapters; // Added to match .g.dart
+  int totalTimeSpentInSeconds;
 
   @HiveField(4)
-  DateTime lastReadDate; // Changed from 'lastReadAt' to match .g.dart
+  DateTime lastReadAt;
 
   @HiveField(5)
-  int totalReadingTimeMinutes; // Changed from 'totalTimeSpentInSeconds' to match .g.dart
-
-  @HiveField(6)
-  double progressPercentage; // Changed from 'readPercentage' to match .g.dart
-
-  @HiveField(7)
-  String lastChapterTitle; // Added to match .g.dart
-
-  @HiveField(8)
-  bool isCompleted; // Added to match .g.dart
-
-  @HiveField(9)
-  DateTime? completedDate; // Added to match .g.dart
-
-  @HiveField(10)
   List<int> bookmarks;
 
   ReadingProgress({
     required this.bookId,
-    required this.bookTitle,
-    required this.currentChapter,
-    required this.totalChapters,
-    required this.lastReadDate,
-    this.totalReadingTimeMinutes = 0,
+    required this.chapterIndex,
     required this.progressPercentage,
-    required this.lastChapterTitle,
-    this.isCompleted = false,
-    this.completedDate,
-    this.bookmarks = const [],
+    required this.totalTimeSpentInSeconds,
+    required this.lastReadAt,
+    required this.bookmarks,
   });
 
-  // Helper getters for compatibility
-  int get chapterIndex => currentChapter;
-  DateTime get lastReadAt => lastReadDate;
-  int get totalTimeSpentInSeconds => totalReadingTimeMinutes * 60;
-  double get readPercentage => progressPercentage;
+  // Add the missing totalReadingTimeMinutes getter/setter for StorageService compatibility
+  int get totalReadingTimeMinutes => totalTimeSpentInSeconds ~/ 60;
+  set totalReadingTimeMinutes(int minutes) => totalTimeSpentInSeconds = minutes * 60;
 
-  // Helper method for updating progress
   void updateProgress() {
-    lastReadDate = DateTime.now();
-    if (progressPercentage >= 0.99 && !isCompleted) {
-      isCompleted = true;
-      completedDate = DateTime.now();
+    lastReadAt = DateTime.now();
+  }
+
+  String get formattedReadingTime {
+    final hours = totalTimeSpentInSeconds ~/ 3600;
+    final minutes = (totalTimeSpentInSeconds % 3600) ~/ 60;
+    if (hours > 0) {
+      return '${hours}h ${minutes}m';
+    } else {
+      return '${minutes}m';
     }
   }
+
+  double get readPercentage => progressPercentage / 100;
 }

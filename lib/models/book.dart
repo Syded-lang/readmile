@@ -1,15 +1,43 @@
+import 'package:hive/hive.dart';
+
+part 'book.g.dart';
+
+@HiveType(typeId: 2)
 class Book {
+  @HiveField(0)
   final String id;
+
+  @HiveField(1)
   final String title;
+
+  @HiveField(2)
   final String author;
+
+  @HiveField(3)
   final String coverUrl;
+
+  @HiveField(4)
   final String filePath;
+
+  @HiveField(5)
   final String category;
+
+  @HiveField(6)
   final DateTime publishedDate;
+
+  @HiveField(7)
   final String description;
+
+  @HiveField(8)
   final String? gridfsEpubId;
+
+  @HiveField(9)
   final String? epubFilename;
+
+  @HiveField(10)
   final int? epubFileSizeBytes;
+
+  @HiveField(11)
   final List<String> categories;
 
   Book({
@@ -32,16 +60,18 @@ class Book {
       id: json['_id']?.toString() ?? '',
       title: json['title']?.toString() ?? 'Unknown Title',
       author: json['author']?.toString() ?? 'Unknown Author',
-      coverUrl: json['coverUrl']?.toString() ?? '',
+      // Use gridfs_cover_id for coverUrl
+      coverUrl: json['gridfs_cover_id']?.toString() ?? '',
       filePath: json['filePath']?.toString() ?? '',
       category: json['category']?.toString() ?? 'Uncategorized',
       publishedDate: json['publishedDate'] != null
           ? DateTime.tryParse(json['publishedDate'].toString()) ?? DateTime.now()
           : DateTime.now(),
       description: json['description']?.toString() ?? 'No description available',
-      gridfsEpubId: json['gridfsEpubId']?.toString(),
-      epubFilename: json['epubFilename']?.toString(),
-      epubFileSizeBytes: json['epubFileSizeBytes'] as int?,
+      // Use correct field name from your MongoDB
+      gridfsEpubId: json['gridfs_epub_id']?.toString(),
+      epubFilename: json['epub_filename']?.toString(),
+      epubFileSizeBytes: json['epub_file_size_bytes'] as int?,
       categories: json['categories'] != null
           ? List<String>.from(json['categories'])
           : [],
@@ -57,14 +87,14 @@ class Book {
       '_id': id,
       'title': title,
       'author': author,
-      'coverUrl': coverUrl,
+      'gridfs_cover_id': coverUrl,
       'filePath': filePath,
       'category': category,
       'publishedDate': publishedDate.toIso8601String(),
       'description': description,
-      'gridfsEpubId': gridfsEpubId,
-      'epubFilename': epubFilename,
-      'epubFileSizeBytes': epubFileSizeBytes,
+      'gridfs_epub_id': gridfsEpubId,
+      'epub_filename': epubFilename,
+      'epub_file_size_bytes': epubFileSizeBytes,
       'categories': categories,
     };
   }
@@ -72,4 +102,18 @@ class Book {
   Map<String, dynamic> toMap() {
     return toJson();
   }
+
+  @override
+  String toString() {
+    return 'Book(id: $id, title: $title, author: $author)';
+  }
+
+  @override
+  bool operator ==(Object other) {
+    if (identical(this, other)) return true;
+    return other is Book && other.id == id;
+  }
+
+  @override
+  int get hashCode => id.hashCode;
 }

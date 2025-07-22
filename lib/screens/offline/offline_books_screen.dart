@@ -1,357 +1,244 @@
 import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
-import 'package:readmile/providers/offline_provider.dart';
-import 'package:readmile/providers/reading_provider.dart';
-import 'package:readmile/models/offline_book.dart';
-import 'package:readmile/models/book.dart'; // ADD THIS IMPORT
-import 'package:readmile/screens/reader/epub_reader_screen.dart';
+import '../../providers/offline_provider.dart';
+import '../../providers/book_provider.dart';
+import '../../models/book.dart';
+import '../reader/epub_reader_screen.dart';
 
-class OfflineBooksScreen extends StatefulWidget {
-  @override
-  State<OfflineBooksScreen> createState() => _OfflineBooksScreenState();
-}
-
-class _OfflineBooksScreenState extends State<OfflineBooksScreen> {
-  @override
-  void initState() {
-    super.initState();
-    WidgetsBinding.instance.addPostFrameCallback((_) {
-      Provider.of<OfflineProvider>(context, listen: false).loadOfflineBooks();
-    });
-  }
+class OfflineBooksScreen extends StatelessWidget {
+  const OfflineBooksScreen({Key? key}) : super(key: key);
 
   @override
   Widget build(BuildContext context) {
     return Scaffold(
-      backgroundColor: Colors.grey[50],
       appBar: AppBar(
-        title: Text('Downloaded Books', style: TextStyle(color: Colors.white)),
-        backgroundColor: Color(0xFF730000),
-        iconTheme: IconThemeData(color: Colors.white),
+        title: const Text('Downloaded Books'),
+        backgroundColor: const Color(0xFF730000),
         actions: [
           Consumer<OfflineProvider>(
             builder: (context, provider, child) {
-              return PopupMenuButton<String>(
-                onSelected: (value) => _handleMenuAction(value, provider),
+              if (provider.offlineBooks.isEmpty) return const SizedBox();
+
+              return PopupMenuButton(
                 itemBuilder: (context) => [
-                  PopupMenuItem(value: 'storage', child: Row(children: [Icon(Icons.storage, color: Color(0xFF730000)), SizedBox(width: 8), Text('Storage Info')])),
-                  PopupMenuItem(value: 'cleanup', child: Row(children: [Icon(Icons.cleaning_services, color: Color(0xFF730000)), SizedBox(width: 8), Text('Cleanup')])),
-                  PopupMenuItem(value: 'delete_all', child: Row(children: [Icon(Icons.delete_forever, color: Colors.red), SizedBox(width: 8), Text('Delete All')])),
+                  const PopupMenuItem(
+                    value: 'clear_all',
+                    child: Row(
+                      children: [
+                        Icon(Icons.clear_all, color: Colors.red),
+                        SizedBox(width: 8),
+                        Text('Clear All Downloads'),
+                      ],
+                    ),
+                  ),
                 ],
+                onSelected: (value) {
+                  if (value == 'clear_all') {
+                    _confirmClearAll(context, provider);
+                  }
+                },
               );
             },
           ),
         ],
       ),
-      body: Consumer<OfflineProvider>(
-        builder: (context, offlineProvider, child) {
+      body: Consumer2<OfflineProvider, BookProvider>(
+        builder: (context, offlineProvider, bookProvider, child) {
           if (offlineProvider.isLoading) {
-            return Center(child: CircularProgressIndicator(valueColor: AlwaysStoppedAnimation<Color>(Color(0xFF730000))));
+            return const Center(
+              child: CircularProgressIndicator(color: Color(0xFF730000)),
+            );
           }
 
-          final offlineBooks = offlineProvider.offlineBooks;
-
-          if (offlineBooks.isEmpty) {
-            return _buildEmptyState();
+          if (offlineProvider.offlineBooks.isEmpty) {
+            return const Center(
+              child: Column(
+                mainAxisAlignment: MainAxisAlignment.center,
+                children: [
+                  Icon(
+                    Icons.download_outlined,
+                    size: 64,
+                    color: Colors.grey,
+                  ),
+                  SizedBox(height: 16),
+                  Text(
+                    'No downloaded books',
+                    style: TextStyle(fontSize: 18, color: Colors.grey),
+                  ),
+                  SizedBox(height: 8),
+                  Text(
+                    'Download books for offline reading from the library',
+                    style: TextStyle(fontSize: 14, color: Colors.grey),
+                    textAlign: TextAlign.center,
+                  ),
+                ],
+              ),
+            );
           }
 
-          return Column(
-            children: [
-              _buildStorageInfo(offlineProvider),
-              Expanded(child: _buildOfflineBooksList(offlineBooks)),
-            ],
+          return ListView.builder(
+            padding: const EdgeInsets.all(16),
+            itemCount: offlineProvider.offlineBooks.length,
+            itemBuilder: (context, index) {
+              final offlineBook = offlineProvider.offlineBooks[index];
+              final book = bookProvider.getBookById(offlineBook.bookId);
+
+              return Card(
+                margin: const EdgeInsets.only(bottom: 12),
+                child: ListTile(
+                  leading: Container(
+                    width: 50,
+                    height: 70,
+                    decoration: BoxDecoration(
+                      borderRadius: BorderRadius.circular(8),
+                      color: const Color(0xFF730000).withOpacity(0.1),
+                    ),
+                    child: const Icon(
+                      Icons.menu_book,
+                      color: Color(0xFF730000),
+                      size: 30,
+                    ),
+                  ),
+                  title: Text(
+                    offlineBook.title,
+                    style: const TextStyle(fontWeight: FontWeight.bold),
+                  ),
+                  subtitle: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      Text('by ${offlineBook.author}'),
+                      const SizedBox(height: 4),
+                      Text(
+                        'Downloaded: ${offlineBook.downloadDateFormatted}',
+                        style: const TextStyle(fontSize: 12, color: Colors.grey),
+                      ),
+                      Text(
+                        'Size: ${offlineBook.fileSizeFormatted}',
+                        style: const TextStyle(fontSize: 12, color: Colors.grey),
+                      ),
+                    ],
+                  ),
+                  trailing: Row(
+                    mainAxisSize: MainAxisSize.min,
+                    children: [
+                      IconButton(
+                        icon: const Icon(
+                          Icons.play_arrow,
+                          color: Color(0xFF730000),
+                        ),
+                        tooltip: 'Read offline',
+                        onPressed: () {
+                          if (book != null) {
+                            Navigator.push(
+                              context,
+                              MaterialPageRoute(
+                                builder: (_) => EpubReaderScreen(
+                                  book: book,
+                                  filePath: offlineBook.localFilePath, // Pass local file path
+                                ),
+                              ),
+                            );
+                          }
+                        },
+                      ),
+                      IconButton(
+                        icon: const Icon(Icons.delete, color: Colors.red),
+                        tooltip: 'Remove download',
+                        onPressed: () => _confirmDelete(
+                          context,
+                          offlineProvider,
+                          offlineBook.bookId,
+                          offlineBook.title,
+                        ),
+                      ),
+                    ],
+                  ),
+                  onTap: () {
+                    if (book != null) {
+                      Navigator.push(
+                        context,
+                        MaterialPageRoute(
+                          builder: (_) => EpubReaderScreen(
+                            book: book,
+                            filePath: offlineBook.localFilePath, // Open with local file
+                          ),
+                        ),
+                      );
+                    }
+                  },
+                ),
+              );
+            },
           );
         },
       ),
     );
   }
 
-  Widget _buildStorageInfo(OfflineProvider provider) {
-    return Container(
-      margin: EdgeInsets.all(16),
-      padding: EdgeInsets.all(16),
-      decoration: BoxDecoration(
-        color: Color(0xFF730000).withOpacity(0.1),
-        borderRadius: BorderRadius.circular(12),
-        border: Border.all(color: Color(0xFF730000).withOpacity(0.2)),
-      ),
-      child: Row(
-        mainAxisAlignment: MainAxisAlignment.spaceBetween,
-        children: [
-          Column(
-            crossAxisAlignment: CrossAxisAlignment.start,
-            children: [
-              Text('Downloaded Books', style: TextStyle(fontWeight: FontWeight.bold, color: Color(0xFF730000))),
-              Text('${provider.offlineBooks.length} books', style: TextStyle(color: Colors.grey[600])),
-            ],
+  void _confirmDelete(
+      BuildContext context,
+      OfflineProvider provider,
+      String bookId,
+      String title,
+      ) {
+    showDialog(
+      context: context,
+      builder: (context) => AlertDialog(
+        title: const Text('Remove Download'),
+        content: Text('Remove "$title" from your device?'),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.pop(context),
+            child: const Text('Cancel'),
           ),
-          Column(
-            crossAxisAlignment: CrossAxisAlignment.end,
-            children: [
-              Text('Storage Used', style: TextStyle(fontWeight: FontWeight.bold, color: Color(0xFF730000))),
-              Text(provider.getFormattedStorageUsed(), style: TextStyle(color: Colors.grey[600])),
-            ],
-          ),
-        ],
-      ),
-    );
-  }
-
-  Widget _buildOfflineBooksList(List<OfflineBook> books) {
-    return ListView.builder(
-      padding: EdgeInsets.symmetric(horizontal: 16),
-      itemCount: books.length,
-      itemBuilder: (context, index) {
-        final book = books[index];
-        return _buildOfflineBookCard(book);
-      },
-    );
-  }
-
-  Widget _buildOfflineBookCard(OfflineBook book) {
-    return Consumer<ReadingProvider>(
-      builder: (context, readingProvider, child) {
-        final progress = readingProvider.getBookProgress(book.bookId);
-
-        return Card(
-          margin: EdgeInsets.only(bottom: 12),
-          elevation: 2,
-          shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
-          child: ListTile(
-            contentPadding: EdgeInsets.all(16),
-            leading: Container(
-              width: 50,
-              height: 70,
-              decoration: BoxDecoration(
-                color: Color(0xFF730000).withOpacity(0.1),
-                borderRadius: BorderRadius.circular(8),
-              ),
-              child: Column(
-                mainAxisAlignment: MainAxisAlignment.center,
-                children: [
-                  Icon(Icons.offline_bolt, color: Color(0xFF730000), size: 20),
-                  SizedBox(height: 4),
-                  Text('EPUB', style: TextStyle(color: Color(0xFF730000), fontSize: 8, fontWeight: FontWeight.bold)),
-                ],
-              ),
-            ),
-            title: Text(book.title, style: TextStyle(fontWeight: FontWeight.bold, color: Color(0xFF730000)), maxLines: 2, overflow: TextOverflow.ellipsis),
-            subtitle: Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                SizedBox(height: 4),
-                Text('by ${book.author}', style: TextStyle(color: Colors.grey[600])),
-                SizedBox(height: 8),
-                Row(
-                  children: [
-                    Icon(Icons.download_done, size: 14, color: Colors.green),
-                    SizedBox(width: 4),
-                    Text(book.downloadDateFormatted, style: TextStyle(fontSize: 12, color: Colors.grey[500])),
-                    SizedBox(width: 16),
-                    Text(book.fileSizeFormatted, style: TextStyle(fontSize: 12, color: Colors.grey[500])),
-                  ],
+          TextButton(
+            onPressed: () {
+              Navigator.pop(context);
+              provider.removeBook(bookId);
+              ScaffoldMessenger.of(context).showSnackBar(
+                SnackBar(
+                  content: Text('Removed "$title"'),
+                  backgroundColor: const Color(0xFF730000),
                 ),
-                if (progress != null) ...[
-                  SizedBox(height: 8),
-                  LinearProgressIndicator(
-                    value: progress.progressPercentage / 100,
-                    backgroundColor: Colors.grey[300],
-                    valueColor: AlwaysStoppedAnimation<Color>(Color(0xFF730000)),
+              );
+            },
+            child: const Text('Remove', style: TextStyle(color: Colors.red)),
+          ),
+        ],
+      ),
+    );
+  }
+
+  void _confirmClearAll(BuildContext context, OfflineProvider provider) {
+    showDialog(
+      context: context,
+      builder: (context) => AlertDialog(
+        title: const Text('Clear All Downloads'),
+        content: Text(
+            'Remove all ${provider.offlineBooks.length} downloaded books from your device?'
+        ),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.pop(context),
+            child: const Text('Cancel'),
+          ),
+          TextButton(
+            onPressed: () async {
+              Navigator.pop(context);
+              final books = [...provider.offlineBooks];
+              for (final book in books) {
+                await provider.removeBook(book.bookId);
+              }
+              if (context.mounted) {
+                ScaffoldMessenger.of(context).showSnackBar(
+                  const SnackBar(
+                    content: Text('All downloads cleared'),
+                    backgroundColor: Color(0xFF730000),
                   ),
-                  SizedBox(height: 4),
-                  Text('${progress.progressPercentage.toInt()}% complete', style: TextStyle(fontSize: 12, color: Color(0xFF730000))),
-                ]
-              ],
-            ),
-            trailing: PopupMenuButton<String>(
-              onSelected: (value) => _handleBookAction(value, book),
-              itemBuilder: (context) => [
-                PopupMenuItem(value: 'read', child: Row(children: [Icon(Icons.menu_book, color: Color(0xFF730000)), SizedBox(width: 8), Text('Read')])),
-                PopupMenuItem(value: 'info', child: Row(children: [Icon(Icons.info, color: Color(0xFF730000)), SizedBox(width: 8), Text('Details')])),
-                PopupMenuItem(value: 'delete', child: Row(children: [Icon(Icons.delete, color: Colors.red), SizedBox(width: 8), Text('Delete')])),
-              ],
-            ),
-            onTap: () => _openBook(book),
-          ),
-        );
-      },
-    );
-  }
-
-  Widget _buildEmptyState() {
-    return Center(
-      child: Padding(
-        padding: EdgeInsets.all(32),
-        child: Column(
-          mainAxisAlignment: MainAxisAlignment.center,
-          children: [
-            Icon(Icons.cloud_download, size: 80, color: Colors.grey[400]),
-            SizedBox(height: 16),
-            Text('No Downloaded Books', style: TextStyle(fontSize: 20, fontWeight: FontWeight.bold, color: Colors.grey[600])),
-            SizedBox(height: 8),
-            Text('Download books from your library to read offline', style: TextStyle(fontSize: 14, color: Colors.grey[500]), textAlign: TextAlign.center),
-            SizedBox(height: 24),
-            ElevatedButton.icon(
-              onPressed: () => Navigator.pop(context),
-              icon: Icon(Icons.library_books, color: Colors.white),
-              label: Text('Browse Library', style: TextStyle(color: Colors.white)),
-              style: ElevatedButton.styleFrom(backgroundColor: Color(0xFF730000)),
-            ),
-          ],
-        ),
-      ),
-    );
-  }
-
-  void _handleMenuAction(String action, OfflineProvider provider) async {
-    switch (action) {
-      case 'storage':
-        _showStorageInfo(provider);
-        break;
-      case 'cleanup':
-        await provider.cleanupStorage();
-        ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text('Storage cleanup completed'), backgroundColor: Color(0xFF730000)));
-        break;
-      case 'delete_all':
-        _confirmDeleteAll(provider);
-        break;
-    }
-  }
-
-  void _handleBookAction(String action, OfflineBook book) {
-    switch (action) {
-      case 'read':
-        _openBook(book);
-        break;
-      case 'info':
-        _showBookInfo(book);
-        break;
-      case 'delete':
-        _confirmDeleteBook(book);
-        break;
-    }
-  }
-
-  void _openBook(OfflineBook book) {
-    // FIXED: Convert OfflineBook to Book model for reader with proper constructor
-    final bookForReader = Book(
-      id: book.bookId,
-      title: book.title,
-      author: book.author,
-      coverUrl: '', // Required field
-      filePath: book.localFilePath, // Required field
-      category: book.categories.isNotEmpty ? book.categories.first : 'Uncategorized', // Required field
-      publishedDate: book.downloadDate, // Required field
-      description: 'Offline cached book', // Required field
-      gridfsEpubId: null, // Optional field
-      epubFilename: null, // Optional field
-      epubFileSizeBytes: book.fileSizeBytes, // Optional field
-      categories: book.categories, // Optional field with default
-    );
-
-    Navigator.push(
-        context,
-        MaterialPageRoute(
-            builder: (context) => EpubReaderScreen(
-              book: bookForReader,
-              filePath: book.localFilePath,
-            )
-        )
-    );
-  }
-
-  void _showStorageInfo(OfflineProvider provider) {
-    showDialog(
-      context: context,
-      builder: (context) => AlertDialog(
-        title: Text('Storage Information', style: TextStyle(color: Color(0xFF730000))),
-        content: Column(
-          mainAxisSize: MainAxisSize.min,
-          children: [
-            _buildInfoRow('Total Books', '${provider.getTotalOfflineBooks()}'),
-            _buildInfoRow('Storage Used', provider.getFormattedStorageUsed()),
-            _buildInfoRow('Average Size', '${(provider.getTotalStorageUsed() / (provider.getTotalOfflineBooks() * 1024)).toStringAsFixed(1)} KB per book'),
-          ],
-        ),
-        actions: [
-          TextButton(onPressed: () => Navigator.pop(context), child: Text('Close', style: TextStyle(color: Color(0xFF730000)))),
-        ],
-      ),
-    );
-  }
-
-  Widget _buildInfoRow(String label, String value) {
-    return Padding(
-      padding: EdgeInsets.symmetric(vertical: 4),
-      child: Row(
-        mainAxisAlignment: MainAxisAlignment.spaceBetween,
-        children: [
-          Text(label, style: TextStyle(fontWeight: FontWeight.w500)),
-          Text(value, style: TextStyle(color: Colors.grey[600])),
-        ],
-      ),
-    );
-  }
-
-  void _showBookInfo(OfflineBook book) {
-    showDialog(
-      context: context,
-      builder: (context) => AlertDialog(
-        title: Text(book.title, style: TextStyle(color: Color(0xFF730000))),
-        content: Column(
-          mainAxisSize: MainAxisSize.min,
-          crossAxisAlignment: CrossAxisAlignment.start,
-          children: [
-            _buildInfoRow('Author', book.author),
-            _buildInfoRow('Downloaded', book.downloadDateFormatted),
-            _buildInfoRow('File Size', book.fileSizeFormatted),
-            _buildInfoRow('Categories', book.categories.join(', ')),
-            _buildInfoRow('Local Path', book.localFilePath),
-          ],
-        ),
-        actions: [
-          TextButton(onPressed: () => Navigator.pop(context), child: Text('Close', style: TextStyle(color: Color(0xFF730000)))),
-        ],
-      ),
-    );
-  }
-
-  void _confirmDeleteBook(OfflineBook book) {
-    showDialog(
-      context: context,
-      builder: (context) => AlertDialog(
-        title: Text('Delete Downloaded Book?'),
-        content: Text('This will remove "${book.title}" from your device. You can download it again later.'),
-        actions: [
-          TextButton(onPressed: () => Navigator.pop(context), child: Text('Cancel')),
-          TextButton(
-            onPressed: () async {
-              Navigator.pop(context);
-              await Provider.of<OfflineProvider>(context, listen: false).removeBook(book.bookId);
-              ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text('Book deleted'), backgroundColor: Color(0xFF730000)));
+                );
+              }
             },
-            child: Text('Delete', style: TextStyle(color: Colors.red)),
-          ),
-        ],
-      ),
-    );
-  }
-
-  void _confirmDeleteAll(OfflineProvider provider) {
-    showDialog(
-      context: context,
-      builder: (context) => AlertDialog(
-        title: Text('Delete All Downloads?'),
-        content: Text('This will remove all downloaded books from your device. This action cannot be undone.'),
-        actions: [
-          TextButton(onPressed: () => Navigator.pop(context), child: Text('Cancel')),
-          TextButton(
-            onPressed: () async {
-              Navigator.pop(context);
-              await provider.removeAllOfflineBooks();
-              ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text('All downloads deleted'), backgroundColor: Color(0xFF730000)));
-            },
-            child: Text('Delete All', style: TextStyle(color: Colors.red)),
+            child: const Text('Clear All', style: TextStyle(color: Colors.red)),
           ),
         ],
       ),

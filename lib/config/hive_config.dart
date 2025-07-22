@@ -7,22 +7,23 @@ class HiveConfig {
   static Future<void> init() async {
     await Hive.initFlutter();
 
-    // Register TextAlign adapter for ReadingSettings
-    Hive.registerAdapter(_TextAlignAdapter());
-
-    // Register models
-    Hive.registerAdapter(OfflineBookAdapter());
-    Hive.registerAdapter(ReadingProgressAdapter());
-    // REMOVED: ReadingSettingsAdapter() - not needed since we use SharedPreferences
+    // Check if adapters are already registered to prevent duplicates
+    if (!Hive.isAdapterRegistered(10)) {
+      Hive.registerAdapter(_TextAlignAdapter());
+    }
+    if (!Hive.isAdapterRegistered(0)) {
+      Hive.registerAdapter(OfflineBookAdapter());
+    }
+    if (!Hive.isAdapterRegistered(1)) {
+      Hive.registerAdapter(ReadingProgressAdapter());
+    }
 
     // Open boxes
-    await Hive.openBox<OfflineBook>('offlineBooks');
-    await Hive.openBox<ReadingProgress>('readingProgress');
-    // REMOVED: readingSettings box - not needed since we use SharedPreferences
+    await Hive.openBox('offlineBooks');
+    await Hive.openBox('readingProgress');
   }
 }
 
-// Custom adapter for TextAlign enum
 class _TextAlignAdapter extends TypeAdapter<TextAlign> {
   @override
   final int typeId = 10;
