@@ -3,109 +3,39 @@ import 'package:readmile/models/book.dart';
 import 'package:readmile/core/constants.dart';
 
 class ApiService {
-  static const String _connectionString = AppConstants.mongoDbConnectionString;
+  // CORRECTED: Include database name directly in connection string
+  static const String _connectionString =
+      'mongodb+srv://mikiemillsyded:Fishpoder123%23@readmile.igbtpmz.mongodb.net/library?retryWrites=true&w=majority&appName=ReadMile';
 
   static Future<List<Book>> fetchBooks() async {
     Db? db;
     try {
-      print('🔄 Connecting to MongoDB Atlas...');
+      print('🔄 Connecting to library database directly...');
 
+      // Connect directly to the library database (no useDb needed)
       db = await Db.create(_connectionString);
       await db.open();
 
-      // Test connection
-      final adminDb = db.useDb('admin');
-      await adminDb.runCommand({'ping': 1});
-      print('✅ Successfully connected to MongoDB Atlas');
+      print('✅ Connected to MongoDB Atlas library database');
 
-      // Switch to library database and fetch books
-      final libraryDb = db.useDb(AppConstants.databaseName);
-      final collection = libraryDb.collection(AppConstants.booksCollection);
+      // Query the books collection directly
+      final collection = db.collection('books');
 
+      print('🔍 Querying books collection...');
       final docs = await collection.find().toList();
 
-      print('📚 Found ${docs.length} books in ${AppConstants.databaseName} collection');
+      print('📚 Found ${docs.length} books in collection');
+
+      // Debug: Print first document structure if available
+      if (docs.isNotEmpty) {
+        print('📄 Sample document keys: ${docs.first.keys.toList()}');
+        print('📄 Sample title: ${docs.first['title']}');
+      }
 
       return docs.map((doc) => Book.fromJson(doc)).toList();
 
     } catch (e) {
-      print('❌ MongoDB Connection Error: $e');
-      throw Exception('Failed to fetch books from MongoDB Atlas: ${_getErrorMessage(e)}');
-    } finally {
-      await db?.close();
-    }
-  }
-
-  static Future<Book?> fetchBookById(String bookId) async {
-    Db? db;
-    try {
-      db = await Db.create(_connectionString);
-      await db.open();
-
-      final libraryDb = db.useDb(AppConstants.databaseName);
-      final collection = libraryDb.collection(AppConstants.booksCollection);
-
-      final doc = await collection.findOne(where.eq('_id', bookId));
-
-      return doc != null ? Book.fromJson(doc) : null;
-    } catch (e) {
-      print('❌ Error fetching book by ID: $e');
-      return null;
-    } finally {
-      await db?.close();
-    }
-  }
-
-  static Future<List<Book>> searchBooks(String query) async {
-    if (query.trim().isEmpty) return [];
-
-    Db? db;
-    try {
-      db = await Db.create(_connectionString);
-      await db.open();
-
-      final libraryDb = db.useDb(AppConstants.databaseName);
-      final collection = libraryDb.collection(AppConstants.booksCollection);
-
-      // Search in title and author fields (case-insensitive)
-      final docs = await collection.find({
-        '\$or': [
-          {'title': RegExp(query, caseSensitive: false)},
-          {'author': RegExp(query, caseSensitive: false)},
-        ]
-      }).toList();
-
-      print('🔍 Found ${docs.length} books matching "$query"');
-      return docs.map((doc) => Book.fromJson(doc)).toList();
-
-    } catch (e) {
-      print('❌ Error searching books: $e');
-      return [];
-    } finally {
-      await db?.close();
-    }
-  }
-
-  static Future<List<Book>> fetchBooksByCategory(String category) async {
-    if (category == 'All') {
-      return fetchBooks();
-    }
-
-    Db? db;
-    try {
-      db = await Db.create(_connectionString);
-      await db.open();
-
-      final libraryDb = db.useDb(AppConstants.databaseName);
-      final collection = libraryDb.collection(AppConstants.booksCollection);
-
-      final docs = await collection.find({'categories': category}).toList();
-
-      print('📂 Found ${docs.length} books in category "$category"');
-      return docs.map((doc) => Book.fromJson(doc)).toList();
-
-    } catch (e) {
-      print('❌ Error fetching books by category: $e');
+      print('❌ MongoDB Error: $e');
       return [];
     } finally {
       await db?.close();
@@ -118,101 +48,44 @@ class ApiService {
       db = await Db.create(_connectionString);
       await db.open();
 
-      // Test with ping command
-      final adminDb = db.useDb('admin');
-      final result = await adminDb.runCommand({'ping': 1});
+      // Test with a simple count query
+      final collection = db.collection('books');
+      final count = await collection.count();
 
-      final isOk = result['ok'] == 1 || result['ok'] == 1.0;
-
-      if (isOk) {
-        print('✅ MongoDB Atlas connection test successful');
-      } else {
-        print('❌ MongoDB Atlas ping returned: $result');
-      }
-
-      return isOk;
+      print('✅ Connection test successful - found $count documents');
+      return true;
     } catch (e) {
-      print('❌ MongoDB Atlas connection test failed: $e');
+      print('❌ Connection test failed: $e');
       return false;
     } finally {
       await db?.close();
     }
   }
 
-  static Future<Map<String, dynamic>> getDatabaseInfo() async {
+  // Debug method to verify database contents
+  static Future<void> debugDatabase() async {
     Db? db;
     try {
       db = await Db.create(_connectionString);
       await db.open();
 
-      final libraryDb = db.useDb(AppConstants.databaseName);
-      final collection = libraryDb.collection(AppConstants.booksCollection);
+      final collection = db.collection('books');
 
-      final totalBooks = await collection.count();
-      final collections = await libraryDb.getCollectionNames();
+      // Get collection stats
+      final count = await collection.count();
+      print('📊 Total documents in books collection: $count');
 
-      return {
-        'totalBooks': totalBooks,
-        'collections': collections,
-        'database': AppConstants.databaseName,
-        'connectionStatus': 'connected',
-      };
-    } catch (e) {
-      print('❌ Error getting database info: $e');
-      return {
-        'totalBooks': 0,
-        'collections': [],
-        'database': AppConstants.databaseName,
-        'connectionStatus': 'error',
-        'error': e.toString(),
-      };
-    } finally {
-      await db?.close();
-    }
-  }
-
-  static Future<List<String>> getAvailableCategories() async {
-    Db? db;
-    try {
-      db = await Db.create(_connectionString);
-      await db.open();
-
-      final libraryDb = db.useDb(AppConstants.databaseName);
-      final collection = libraryDb.collection(AppConstants.booksCollection);
-
-      // Get distinct categories
-      final categories = await collection.distinct('categories');
-
-      final categoryList = <String>['All'];
-      for (var category in categories) {
-        if (category is String && category.isNotEmpty) {
-          categoryList.add(category);
-        }
+      // Get first few documents
+      final sampleDocs = await collection.find().take(3).toList();
+      print('📄 Sample documents:');
+      for (var doc in sampleDocs) {
+        print('  - ${doc['title']} by ${doc['author']}');
       }
 
-      categoryList.sort();
-      return categoryList;
     } catch (e) {
-      print('❌ Error getting categories: $e');
-      return ['All', 'Uncategorised'];
+      print('❌ Debug error: $e');
     } finally {
       await db?.close();
-    }
-  }
-
-  static String _getErrorMessage(dynamic error) {
-    final errorStr = error.toString().toLowerCase();
-
-    if (errorStr.contains('network') || errorStr.contains('socket')) {
-      return 'Network connection failed. Check your internet connection.';
-    } else if (errorStr.contains('timeout')) {
-      return 'Connection timeout. Please try again.';
-    } else if (errorStr.contains('authentication') || errorStr.contains('credential')) {
-      return 'Authentication failed. Invalid database credentials.';
-    } else if (errorStr.contains('dns') || errorStr.contains('host')) {
-      return 'Cannot reach MongoDB server. Check your connection.';
-    } else {
-      return 'Database connection error. Please try again later.';
     }
   }
 }

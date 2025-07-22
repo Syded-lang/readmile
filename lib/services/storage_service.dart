@@ -7,6 +7,16 @@ class StorageService {
   static const String offlineBooksBoxName = 'offline_books';
   static const String statsBoxName = 'reading_stats';
 
+  // FIXED: Added initialize method
+  static Future<void> initialize() async {
+    await Hive.initFlutter();
+    Hive.registerAdapter(ReadingProgressAdapter());
+    Hive.registerAdapter(OfflineBookAdapter());
+    await Hive.openBox<ReadingProgress>(progressBoxName);
+    await Hive.openBox<OfflineBook>(offlineBooksBoxName);
+    await Hive.openBox(statsBoxName);
+  }
+
   static Future<void> saveReadingProgress(ReadingProgress progress) async {
     final box = Hive.box<ReadingProgress>(progressBoxName);
     progress.updateProgress();
@@ -58,14 +68,23 @@ class StorageService {
     return {'totalReadingTimeMinutes': totalTime};
   }
 
-  // FIXED: Added clearAllData method
   static Future<void> clearAllData() async {
     final progressBox = Hive.box<ReadingProgress>(progressBoxName);
     final offlineBox = Hive.box<OfflineBook>(offlineBooksBoxName);
     final statsBox = Hive.box(statsBoxName);
-
     await progressBox.clear();
     await offlineBox.clear();
     await statsBox.clear();
+  }
+
+  // FIXED: Added missing methods referenced in offline_service
+  static bool isBookOffline(String bookId) {
+    final offlineBook = getOfflineBook(bookId);
+    return offlineBook != null && offlineBook.isAvailable;
+  }
+
+  static Future<void> removeOfflineBook(String bookId) async {
+    final box = Hive.box<OfflineBook>(offlineBooksBoxName);
+    await box.delete(bookId);
   }
 }

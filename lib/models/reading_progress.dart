@@ -51,7 +51,6 @@ class ReadingProgress extends HiveObject {
     if (totalChapters > 0) {
       progressPercentage = (currentChapter / totalChapters) * 100;
 
-      // Mark as completed if progress is above threshold
       if (progressPercentage >= 95.0 && !isCompleted) {
         isCompleted = true;
         completedDate = DateTime.now();
@@ -70,9 +69,4 @@ class ReadingProgress extends HiveObject {
   }
 
   String get progressText => '${currentChapter + 1}/$totalChapters chapters';
-
-  @override
-  String toString() {
-    return 'ReadingProgress(bookId: $bookId, progress: ${progressPercentage.toStringAsFixed(1)}%, time: $formattedReadingTime)';
-  }
 }

@@ -6,9 +6,10 @@ class AppConstants {
 
   // Your actual MongoDB Atlas Configuration
   static const String mongoDbConnectionString =
-      'mongodb+srv://mikiemillsyded:Fishpoder123%23@readmile.igbtpmz.mongodb.net/library?retryWrites=true&w=majority&appName=ReadMile';
-  static const String databaseName = 'library';        // Your database
-  static const String booksCollection = 'books';       // Your collection
+      'mongodb+srv://mikiemillsyded:Fishpoder123%23@readmile.igbtpmz.mongodb.net/library?retryWrites=true&w=majority&appName=ReadMile&ssl=true&tls=true&tlsAllowInvalidCertificates=false&tlsAllowInvalidHostnames=false';
+
+  static const String databaseName = 'library';
+  static const String booksCollection = 'books';
   static const String clusterName = 'readmile';        // Your cluster name
   static const String username = 'mikiemillsyded';     // Your MongoDB username
 

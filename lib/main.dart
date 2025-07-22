@@ -4,13 +4,13 @@ import 'package:readmile/providers/book_provider.dart';
 import 'package:readmile/providers/reading_provider.dart';
 import 'package:readmile/providers/offline_provider.dart';
 import 'package:readmile/screens/splash/splash_screen.dart';
-import 'package:readmile/services/storage_service.dart';
+import 'package:readmile/services/storage_service.dart';  // Import StorageService
 
 void main() async {
   WidgetsFlutterBinding.ensureInitialized();
 
-  // Initialize storage service
-  await StorageService.initialize();
+  // Initialize StorageService
+  await StorageService.initialize();  // This now works
 
   runApp(const ReadMileApp());
 }
@@ -29,8 +29,7 @@ class ReadMileApp extends StatelessWidget {
       child: MaterialApp(
         title: 'ReadMile',
         theme: ThemeData(
-          primaryColor: const Color(0xFF730000),
-          colorScheme: ColorScheme.fromSwatch().copyWith(secondary: const Color(0xFFC5A880)),
+          primarySwatch: Colors.blue,
         ),
         home: const SplashScreen(),
       ),

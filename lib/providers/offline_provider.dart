@@ -17,9 +17,10 @@ class OfflineProvider with ChangeNotifier {
   bool isBookDownloading(String bookId) => _downloadingBooks[bookId] ?? false;
   double getDownloadProgress(String bookId) => _downloadProgress[bookId] ?? 0.0;
 
+  // FIXED: Initialize without setState during build
   Future<void> initialize() async {
     _isLoading = true;
-    notifyListeners();
+    // Don't notify listeners here
 
     await Future.wait([
       loadOfflineBooks(),
@@ -27,7 +28,11 @@ class OfflineProvider with ChangeNotifier {
     ]);
 
     _isLoading = false;
-    notifyListeners();
+
+    // Use post-frame callback to avoid setState during build
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      notifyListeners();
+    });
   }
 
   Future<void> loadOfflineBooks() async {
@@ -80,72 +85,5 @@ class OfflineProvider with ChangeNotifier {
     } catch (e) {
       print('Error removing offline book: $e');
     }
-  }
-
-  Future<bool> isBookAvailable(String bookId) async {
-    return await OfflineService.isBookAvailableOffline(bookId);
-  }
-
-  Future<void> cleanupStorage() async {
-    _isLoading = true;
-    notifyListeners();
-
-    try {
-      await OfflineService.cleanupOrphanedFiles();
-      await loadOfflineBooks();
-      await loadStorageInfo();
-    } catch (e) {
-      print('Error cleaning up storage: $e');
-    }
-
-    _isLoading = false;
-    notifyListeners();
-  }
-
-  OfflineBook? getOfflineBook(String bookId) {
-    try {
-      return _offlineBooks.firstWhere((book) => book.bookId == bookId);
-    } catch (e) {
-      return null;
-    }
-  }
-
-  List<OfflineBook> getRecentlyDownloadedBooks({int limit = 10}) {
-    final sorted = List<OfflineBook>.from(_offlineBooks)
-      ..sort((a, b) => b.downloadDate.compareTo(a.downloadDate));
-    return sorted.take(limit).toList();
-  }
-
-  int getTotalOfflineBooks() => _offlineBooks.length;
-
-  int getTotalStorageUsed() {
-    return _offlineBooks.fold(0, (sum, book) => sum + book.fileSizeBytes);
-  }
-
-  String getFormattedStorageUsed() {
-    final bytes = getTotalStorageUsed();
-    if (bytes < 1024 * 1024) {
-      return '${(bytes / 1024).toStringAsFixed(1)} KB';
-    } else {
-      return '${(bytes / (1024 * 1024)).toStringAsFixed(1)} MB';
-    }
-  }
-
-  Future<void> removeAllOfflineBooks() async {
-    _isLoading = true;
-    notifyListeners();
-
-    try {
-      for (final book in _offlineBooks) {
-        await OfflineService.removeOfflineBook(book.bookId);
-      }
-      await loadOfflineBooks();
-      await loadStorageInfo();
-    } catch (e) {
-      print('Error removing all offline books: $e');
-    }
-
-    _isLoading = false;
-    notifyListeners();
   }
 }
