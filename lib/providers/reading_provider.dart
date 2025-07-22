@@ -1,158 +1,119 @@
-import 'package:flutter/material.dart';
-import 'package:readmile/models/reading_progress.dart';
-import 'package:readmile/models/offline_book.dart';
-import 'package:readmile/models/book.dart';
-import 'package:readmile/services/storage_service.dart';
-import 'package:readmile/services/offline_service.dart';
+import 'package:flutter/foundation.dart';
+import 'package:hive/hive.dart';
+import '../models/reading_progress.dart';
 
 class ReadingProvider with ChangeNotifier {
-  List<ReadingProgress> _readingProgress = [];
-  List<OfflineBook> _offlineBooks = [];
-  Map<String, dynamic> _readingStats = {};
-  bool _isLoading = false;
-  String? _error;
+  final Box<ReadingProgress> _progressBox;
 
-  // Getters
-  List<ReadingProgress> get readingProgress => _readingProgress;
-  List<OfflineBook> get offlineBooks => _offlineBooks;
-  Map<String, dynamic> get readingStats => _readingStats;
-  bool get isLoading => _isLoading;
-  String? get error => _error;
+  ReadingProvider(this._progressBox);
 
-  // FIXED: Initialize without notifyListeners during build
+  List<ReadingProgress> get readingProgress => _progressBox.values.toList();
+
+  // Initialize method
   Future<void> initialize() async {
-    _isLoading = true;
-    _error = null;
-    // Don't notify listeners here - will be called after build
-
-    try {
-      await Future.wait([
-        _loadReadingProgress(),
-        _loadOfflineBooks(),
-        _loadReadingStats(),
-      ]);
-      print('✅ ReadingProvider initialized successfully');
-    } catch (e) {
-      _error = 'Error initializing reading data: $e';
-      print('❌ ReadingProvider initialization error: $e');
-    } finally {
-      _isLoading = false;
-      // Use post-frame callback to avoid setState during build
-      WidgetsBinding.instance.addPostFrameCallback((_) {
-        notifyListeners();
-      });
-    }
+    // Initialization logic if needed
+    notifyListeners();
   }
 
-  Future<void> _loadReadingProgress() async {
+  ReadingProgress? getProgressForBook(String bookId) {
     try {
-      _readingProgress = StorageService.getAllReadingProgress();
-      print('📊 Loaded ${_readingProgress.length} reading progress records');
-    } catch (e) {
-      print('❌ Error loading reading progress: $e');
-      _readingProgress = [];
-    }
-  }
-
-  Future<void> _loadOfflineBooks() async {
-    try {
-      _offlineBooks = StorageService.getAllOfflineBooks();
-      print('📱 Loaded ${_offlineBooks.length} offline books');
-    } catch (e) {
-      print('❌ Error loading offline books: $e');
-      _offlineBooks = [];
-    }
-  }
-
-  Future<void> _loadReadingStats() async {
-    try {
-      _readingStats = StorageService.getReadingStats();
-      print('📈 Loaded reading statistics');
-    } catch (e) {
-      print('❌ Error loading reading stats: $e');
-      _readingStats = {};
-    }
-  }
-
-  bool isBookOffline(String bookId) {
-    try {
-      return _offlineBooks.any((book) => book.bookId == bookId && book.isAvailable);
-    } catch (e) {
-      return false;
-    }
-  }
-
-  ReadingProgress? getBookProgress(String bookId) {
-    try {
-      return _readingProgress.firstWhere((progress) => progress.bookId == bookId);
+      return _progressBox.values.firstWhere((progress) => progress.bookId == bookId);
     } catch (e) {
       return null;
     }
   }
 
-  Future<bool> downloadBookOffline(Book book, {Function(double)? onProgress}) async {
+  // Alternative method name for compatibility
+  ReadingProgress? getBookProgress(String bookId) {
+    return getProgressForBook(bookId);
+  }
+
+  Future<void> updateReadingProgress(String bookId, int chapterIndex, double readPercentage) async {
     try {
-      final success = await OfflineService.downloadBookForOffline(book, onProgress: onProgress);
-      if (success) {
-        await _loadOfflineBooks();
+      final existingProgress = getProgressForBook(bookId);
+
+      if (existingProgress != null) {
+        existingProgress.currentChapter = chapterIndex;
+        existingProgress.progressPercentage = readPercentage;
+        existingProgress.lastReadDate = DateTime.now();
+        existingProgress.updateProgress();
+        await existingProgress.save();
+      } else {
+        final newProgress = ReadingProgress(
+          bookId: bookId,
+          bookTitle: '', // Will be updated when book info is available
+          currentChapter: chapterIndex,
+          totalChapters: 100, // Default, will be updated
+          lastReadDate: DateTime.now(),
+          progressPercentage: readPercentage,
+          lastChapterTitle: 'Chapter ${chapterIndex + 1}',
+        );
+        await _progressBox.add(newProgress);
+      }
+      notifyListeners();
+    } catch (e) {
+      if (kDebugMode) {
+        print('Error updating reading progress: $e');
+      }
+    }
+  }
+
+  Future<void> updateReadingTime(String bookId, int additionalSeconds) async {
+    try {
+      final existingProgress = getProgressForBook(bookId);
+
+      if (existingProgress != null) {
+        existingProgress.totalReadingTimeMinutes += (additionalSeconds / 60).round();
+        existingProgress.lastReadDate = DateTime.now();
+        existingProgress.updateProgress();
+        await existingProgress.save();
         notifyListeners();
       }
-      return success;
     } catch (e) {
-      _error = 'Error downloading book: $e';
-      print('❌ Download error: $e');
-      notifyListeners();
-      return false;
+      if (kDebugMode) {
+        print('Error updating reading time: $e');
+      }
     }
   }
 
-  Future<void> removeOfflineBook(String bookId) async {
+  Future<void> toggleBookmark(String bookId, int chapterIndex) async {
     try {
-      await OfflineService.removeOfflineBook(bookId);
-      await _loadOfflineBooks();
-      notifyListeners();
+      final existingProgress = getProgressForBook(bookId);
+
+      if (existingProgress != null) {
+        final bookmarks = List<int>.from(existingProgress.bookmarks);
+        if (bookmarks.contains(chapterIndex)) {
+          bookmarks.remove(chapterIndex);
+        } else {
+          bookmarks.add(chapterIndex);
+        }
+        existingProgress.bookmarks = bookmarks;
+        await existingProgress.save();
+        notifyListeners();
+      }
     } catch (e) {
-      _error = 'Error removing offline book: $e';
-      print('❌ Remove offline book error: $e');
-      notifyListeners();
+      if (kDebugMode) {
+        print('Error toggling bookmark: $e');
+      }
     }
   }
 
-  Future<void> updateReadingProgress(ReadingProgress progress) async {
+  bool isBookmarked(String bookId, int chapterIndex) {
+    final progress = getProgressForBook(bookId);
+    return progress?.bookmarks.contains(chapterIndex) ?? false;
+  }
+
+  Future<void> removeProgress(String bookId) async {
     try {
-      await StorageService.saveReadingProgress(progress);
-      await _loadReadingProgress();
-      await _loadReadingStats();
-      notifyListeners();
+      final progress = getProgressForBook(bookId);
+      if (progress != null) {
+        await progress.delete();
+        notifyListeners();
+      }
     } catch (e) {
-      _error = 'Error updating reading progress: $e';
-      print('❌ Update progress error: $e');
-      notifyListeners();
+      if (kDebugMode) {
+        print('Error removing progress: $e');
+      }
     }
-  }
-
-  List<ReadingProgress> getRecentlyReadBooks({int limit = 5}) {
-    try {
-      final sorted = List<ReadingProgress>.from(_readingProgress)
-        ..sort((a, b) => b.lastReadDate.compareTo(a.lastReadDate));
-      return sorted.take(limit).toList();
-    } catch (e) {
-      print('❌ Error getting recent books: $e');
-      return [];
-    }
-  }
-
-  double getProgressPercentage(String bookId) {
-    final progress = getBookProgress(bookId);
-    return progress?.progressPercentage ?? 0.0;
-  }
-
-  void clearError() {
-    _error = null;
-    notifyListeners();
-  }
-
-  Future<void> refresh() async {
-    await initialize();
   }
 }

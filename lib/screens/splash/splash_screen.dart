@@ -78,14 +78,14 @@ class _SplashScreenState extends State<SplashScreen>
       _updateLoadingText('Setting up your library...');
       await Future.delayed(const Duration(milliseconds: 500));
 
-      // Navigate to home screen
+      // Navigate to home screen - FIXED: Remove books parameter
       if (mounted) {
         _updateLoadingText('Welcome to ReadMile!');
         await Future.delayed(const Duration(milliseconds: 500));
 
         Navigator.of(context).pushReplacement(
           MaterialPageRoute(
-            builder: (context) => HomeScreen(books: bookProvider.books),
+            builder: (context) => const HomeScreen(), // REMOVED: books parameter
           ),
         );
       }

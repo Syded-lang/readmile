@@ -3,6 +3,7 @@ import 'package:provider/provider.dart';
 import 'package:readmile/providers/offline_provider.dart';
 import 'package:readmile/providers/reading_provider.dart';
 import 'package:readmile/models/offline_book.dart';
+import 'package:readmile/models/book.dart'; // ADD THIS IMPORT
 import 'package:readmile/screens/reader/epub_reader_screen.dart';
 
 class OfflineBooksScreen extends StatefulWidget {
@@ -232,22 +233,31 @@ class _OfflineBooksScreenState extends State<OfflineBooksScreen> {
   }
 
   void _openBook(OfflineBook book) {
-    // Convert OfflineBook to Book model for reader
+    // FIXED: Convert OfflineBook to Book model for reader with proper constructor
     final bookForReader = Book(
       id: book.bookId,
       title: book.title,
       author: book.author,
-      epubFilename: '',
-      coverFilename: '',
-      gridfsEpubId: '',
-      gridfsCoverId: '',
-      categories: book.categories,
-      epubFileSizeBytes: book.fileSizeBytes,
-      coverFileSizeBytes: 0,
-      uploadDate: book.downloadDate,
+      coverUrl: '', // Required field
+      filePath: book.localFilePath, // Required field
+      category: book.categories.isNotEmpty ? book.categories.first : 'Uncategorized', // Required field
+      publishedDate: book.downloadDate, // Required field
+      description: 'Offline cached book', // Required field
+      gridfsEpubId: null, // Optional field
+      epubFilename: null, // Optional field
+      epubFileSizeBytes: book.fileSizeBytes, // Optional field
+      categories: book.categories, // Optional field with default
     );
 
-    Navigator.push(context, MaterialPageRoute(builder: (context) => EpubReaderScreen(book: bookForReader)));
+    Navigator.push(
+        context,
+        MaterialPageRoute(
+            builder: (context) => EpubReaderScreen(
+              book: bookForReader,
+              filePath: book.localFilePath,
+            )
+        )
+    );
   }
 
   void _showStorageInfo(OfflineProvider provider) {

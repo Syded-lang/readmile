@@ -1,78 +1,74 @@
-import 'package:flutter/material.dart';
-import 'package:readmile/models/book.dart';
-import 'package:readmile/services/api_service.dart';
+import 'package:flutter/foundation.dart';
+import '../models/book.dart';
+import '../services/api_service.dart';
 
 class BookProvider with ChangeNotifier {
+  final ApiService _apiService;
   List<Book> _books = [];
-  List<String> _categories = [];
   bool _isLoading = false;
   String? _error;
 
+  BookProvider(this._apiService);
+
   List<Book> get books => _books;
-  List<String> get categories => _categories;
   bool get isLoading => _isLoading;
   String? get error => _error;
 
-  Future<void> loadBooks() async {
+  Future<void> fetchBooks() async {
     _isLoading = true;
     _error = null;
     notifyListeners();
 
     try {
-      _books = await ApiService.fetchBooks();
-      _extractCategories();
-      print('✅ Loaded ${_books.length} books successfully');
+      _books = await _apiService.getBooks(); // Changed from fetchBooks to getBooks
+      _error = null;
     } catch (e) {
       _error = e.toString();
-      print('❌ Error loading books: $e');
+      if (kDebugMode) {
+        print('Error fetching books: $e');
+      }
     } finally {
       _isLoading = false;
       notifyListeners();
     }
   }
 
-  void _extractCategories() {
-    final Set<String> categorySet = {'All'};
-    for (final book in _books) {
-      categorySet.addAll(book.categories);
-    }
-    _categories = categorySet.toList()..sort((a, b) {
-      if (a == 'All') return -1;
-      if (b == 'All') return 1;
-      return a.compareTo(b);
-    });
+  // Alternative method name for compatibility
+  Future<void> loadBooks() async {
+    await fetchBooks();
   }
 
-  List<Book> getBooksInCategory(String category) {
-    if (category == 'All') return _books;
-    return _books.where((book) => book.categories.contains(category)).toList();
-  }
-
-  Book? getBookById(String id) {
+  Book? getBookById(String bookId) {
     try {
-      return _books.firstWhere((book) => book.id == id);
+      return _books.firstWhere((book) => book.id == bookId);
     } catch (e) {
       return null;
     }
   }
 
-  List<Book> searchBooks(String query) {
-    if (query.isEmpty) return _books;
+  List<Book> getBooksByCategory(String category) {
+    if (category == 'All') {
+      return _books;
+    }
+    return _books.where((book) => book.category == category).toList();
+  }
 
-    final lowercaseQuery = query.toLowerCase();
+  List<Book> searchBooks(String query) {
+    final lowerQuery = query.toLowerCase();
     return _books.where((book) =>
-    book.title.toLowerCase().contains(lowercaseQuery) ||
-        book.author.toLowerCase().contains(lowercaseQuery) ||
-        book.categories.any((category) => category.toLowerCase().contains(lowercaseQuery))
+    book.title.toLowerCase().contains(lowerQuery) ||
+        book.author.toLowerCase().contains(lowerQuery) ||
+        book.category.toLowerCase().contains(lowerQuery)
     ).toList();
   }
 
-  void clearError() {
-    _error = null;
-    notifyListeners();
-  }
-
-  Future<void> refresh() async {
-    await loadBooks();
+  List<String> get categories {
+    final categorySet = <String>{'All'};
+    for (final book in _books) {
+      if (book.category.isNotEmpty) {
+        categorySet.add(book.category);
+      }
+    }
+    return categorySet.toList();
   }
 }

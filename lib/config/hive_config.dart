@@ -1,35 +1,65 @@
+import 'package:flutter/material.dart';
 import 'package:hive_flutter/hive_flutter.dart';
-import 'package:readmile/models/reading_progress.dart';
-import 'package:readmile/models/offline_book.dart';
+import '../models/offline_book.dart';
+import '../models/reading_progress.dart';
 
 class HiveConfig {
-  static const String progressBoxName = 'reading_progress';
-  static const String offlineBooksBoxName = 'offline_books';
-  static const String statsBoxName = 'reading_stats';
-
-  static Future<void> initialize() async {
+  static Future<void> init() async {
     await Hive.initFlutter();
 
-    // Register adapters
-    if (!Hive.isAdapterRegistered(0)) {
-      Hive.registerAdapter(ReadingProgressAdapter());
-    }
-    if (!Hive.isAdapterRegistered(1)) {
-      Hive.registerAdapter(OfflineBookAdapter());
-    }
+    // Register TextAlign adapter for ReadingSettings
+    Hive.registerAdapter(_TextAlignAdapter());
+
+    // Register models
+    Hive.registerAdapter(OfflineBookAdapter());
+    Hive.registerAdapter(ReadingProgressAdapter());
+    // REMOVED: ReadingSettingsAdapter() - not needed since we use SharedPreferences
 
     // Open boxes
-    await Hive.openBox<ReadingProgress>(progressBoxName);
-    await Hive.openBox<OfflineBook>(offlineBooksBoxName);
-    await Hive.openBox(statsBoxName);
+    await Hive.openBox<OfflineBook>('offlineBooks');
+    await Hive.openBox<ReadingProgress>('readingProgress');
+    // REMOVED: readingSettings box - not needed since we use SharedPreferences
+  }
+}
 
-    print('✅ Hive initialized successfully');
+// Custom adapter for TextAlign enum
+class _TextAlignAdapter extends TypeAdapter<TextAlign> {
+  @override
+  final int typeId = 10;
+
+  @override
+  TextAlign read(BinaryReader reader) {
+    switch (reader.readByte()) {
+      case 0:
+        return TextAlign.left;
+      case 1:
+        return TextAlign.right;
+      case 2:
+        return TextAlign.center;
+      case 3:
+        return TextAlign.justify;
+      default:
+        return TextAlign.left;
+    }
   }
 
-  static Future<void> clearAllData() async {
-    await Hive.box<ReadingProgress>(progressBoxName).clear();
-    await Hive.box<OfflineBook>(offlineBooksBoxName).clear();
-    await Hive.box(statsBoxName).clear();
-    print('🗑️ All Hive data cleared');
+  @override
+  void write(BinaryWriter writer, TextAlign obj) {
+    switch (obj) {
+      case TextAlign.left:
+        writer.writeByte(0);
+        break;
+      case TextAlign.right:
+        writer.writeByte(1);
+        break;
+      case TextAlign.center:
+        writer.writeByte(2);
+        break;
+      case TextAlign.justify:
+        writer.writeByte(3);
+        break;
+      default:
+        writer.writeByte(0);
+    }
   }
 }

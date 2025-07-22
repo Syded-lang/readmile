@@ -1,103 +1,75 @@
-import 'package:mongo_dart/mongo_dart.dart';
-
 class Book {
   final String id;
   final String title;
   final String author;
-  final String epubFilename;
-  final String coverFilename;
-  final String gridfsEpubId;
-  final String gridfsCoverId;
+  final String coverUrl;
+  final String filePath;
+  final String category;
+  final DateTime publishedDate;
+  final String description;
+  final String? gridfsEpubId;
+  final String? epubFilename;
+  final int? epubFileSizeBytes;
   final List<String> categories;
-  final int epubFileSizeBytes;
-  final int coverFileSizeBytes;
-  final DateTime uploadDate;
 
   Book({
     required this.id,
     required this.title,
     required this.author,
-    required this.epubFilename,
-    required this.coverFilename,
-    required this.gridfsEpubId,
-    required this.gridfsCoverId,
-    required this.categories,
-    required this.epubFileSizeBytes,
-    required this.coverFileSizeBytes,
-    required this.uploadDate,
+    required this.coverUrl,
+    required this.filePath,
+    required this.category,
+    required this.publishedDate,
+    required this.description,
+    this.gridfsEpubId,
+    this.epubFilename,
+    this.epubFileSizeBytes,
+    this.categories = const [],
   });
 
-  String get primaryCategory => categories.isNotEmpty ? categories.first : 'All';
-
   factory Book.fromJson(Map<String, dynamic> json) {
-    try {
-      return Book(
-        id: json['_id']?.toString() ?? '',
-        title: json['title']?.toString() ?? 'Unknown Title',
-        author: json['author']?.toString() ?? 'Unknown Author',
-        epubFilename: json['epub_filename']?.toString() ?? '',
-        coverFilename: json['cover_filename']?.toString() ?? '',
-        gridfsEpubId: _parseObjectId(json['gridfs_epub_id']),
-        gridfsCoverId: _parseObjectId(json['gridfs_cover_id']),
-        categories: _parseCategories(json['categories']),
-        epubFileSizeBytes: _parseInt(json['epub_file_size_bytes']),
-        coverFileSizeBytes: _parseInt(json['cover_file_size_bytes']),
-        uploadDate: _parseDate(json['upload_date']),
-      );
-    } catch (e) {
-      print('Error parsing book: $e');
-      print('Raw JSON: $json');
-      rethrow;
-    }
+    return Book(
+      id: json['_id']?.toString() ?? '',
+      title: json['title']?.toString() ?? 'Unknown Title',
+      author: json['author']?.toString() ?? 'Unknown Author',
+      coverUrl: json['coverUrl']?.toString() ?? '',
+      filePath: json['filePath']?.toString() ?? '',
+      category: json['category']?.toString() ?? 'Uncategorized',
+      publishedDate: json['publishedDate'] != null
+          ? DateTime.tryParse(json['publishedDate'].toString()) ?? DateTime.now()
+          : DateTime.now(),
+      description: json['description']?.toString() ?? 'No description available',
+      gridfsEpubId: json['gridfsEpubId']?.toString(),
+      epubFilename: json['epubFilename']?.toString(),
+      epubFileSizeBytes: json['epubFileSizeBytes'] as int?,
+      categories: json['categories'] != null
+          ? List<String>.from(json['categories'])
+          : [],
+    );
   }
 
-  static String _parseObjectId(dynamic value) {
-    if (value == null) return '';
-    if (value is ObjectId) return value.toHexString();
-    return value.toString();
-  }
-
-  static List<String> _parseCategories(dynamic value) {
-    if (value == null) return ['All'];
-    if (value is List) {
-      return value.map((e) => e.toString()).toList();
-    }
-    return [value.toString()];
-  }
-
-  static int _parseInt(dynamic value) {
-    if (value == null) return 0;
-    if (value is int) return value;
-    return int.tryParse(value.toString()) ?? 0;
-  }
-
-  static DateTime _parseDate(dynamic value) {
-    if (value == null) return DateTime.now();
-    if (value is DateTime) return value;
-    return DateTime.tryParse(value.toString()) ?? DateTime.now();
+  factory Book.fromMap(Map<String, dynamic> map) {
+    return Book.fromJson(map);
   }
 
   Map<String, dynamic> toJson() {
     return {
-      'id': id,
+      '_id': id,
       'title': title,
       'author': author,
-      'epubFilename': epubFilename,
-      'coverFilename': coverFilename,
+      'coverUrl': coverUrl,
+      'filePath': filePath,
+      'category': category,
+      'publishedDate': publishedDate.toIso8601String(),
+      'description': description,
       'gridfsEpubId': gridfsEpubId,
-      'gridfsCoverId': gridfsCoverId,
-      'categories': categories,
+      'epubFilename': epubFilename,
       'epubFileSizeBytes': epubFileSizeBytes,
-      'coverFileSizeBytes': coverFileSizeBytes,
-      'uploadDate': uploadDate.toIso8601String(),
+      'categories': categories,
     };
   }
 
-  @override
-  bool operator ==(Object other) =>
-      identical(this, other) ||
-          other is Book && runtimeType == other.runtimeType && id == other.id;
-
-  @override
-  int get hashCode => id.hashCode;
+  Map<String, dynamic> toMap() {
+    return toJson();
+  }
 }

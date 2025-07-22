@@ -7,6 +7,11 @@ class ApiService {
   static const String _connectionString =
       'mongodb+srv://mikiemillsyded:Fishpoder123%23@readmile.igbtpmz.mongodb.net/library?retryWrites=true&w=majority&appName=ReadMile';
 
+  // Add the getBooks method that book_provider expects
+  Future<List<Book>> getBooks() async {
+    return await fetchBooks();
+  }
+
   static Future<List<Book>> fetchBooks() async {
     Db? db;
     try {

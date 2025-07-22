@@ -1,38 +1,41 @@
-import 'package:hive_flutter/hive_flutter.dart';
+import 'package:hive/hive.dart';
 
 part 'reading_progress.g.dart';
 
-@HiveType(typeId: 0)
+@HiveType(typeId: 1)
 class ReadingProgress extends HiveObject {
   @HiveField(0)
   String bookId;
 
   @HiveField(1)
-  String bookTitle;
+  String bookTitle; // Added to match .g.dart
 
   @HiveField(2)
-  int currentChapter;
+  int currentChapter; // Changed from 'chapterIndex' to match .g.dart
 
   @HiveField(3)
-  int totalChapters;
+  int totalChapters; // Added to match .g.dart
 
   @HiveField(4)
-  DateTime lastReadDate;
+  DateTime lastReadDate; // Changed from 'lastReadAt' to match .g.dart
 
   @HiveField(5)
-  int totalReadingTimeMinutes;
+  int totalReadingTimeMinutes; // Changed from 'totalTimeSpentInSeconds' to match .g.dart
 
   @HiveField(6)
-  double progressPercentage;
+  double progressPercentage; // Changed from 'readPercentage' to match .g.dart
 
   @HiveField(7)
-  String lastChapterTitle;
+  String lastChapterTitle; // Added to match .g.dart
 
   @HiveField(8)
-  bool isCompleted;
+  bool isCompleted; // Added to match .g.dart
 
   @HiveField(9)
-  DateTime? completedDate;
+  DateTime? completedDate; // Added to match .g.dart
+
+  @HiveField(10)
+  List<int> bookmarks;
 
   ReadingProgress({
     required this.bookId,
@@ -41,32 +44,25 @@ class ReadingProgress extends HiveObject {
     required this.totalChapters,
     required this.lastReadDate,
     this.totalReadingTimeMinutes = 0,
-    this.progressPercentage = 0.0,
-    this.lastChapterTitle = '',
+    required this.progressPercentage,
+    required this.lastChapterTitle,
     this.isCompleted = false,
     this.completedDate,
+    this.bookmarks = const [],
   });
 
+  // Helper getters for compatibility
+  int get chapterIndex => currentChapter;
+  DateTime get lastReadAt => lastReadDate;
+  int get totalTimeSpentInSeconds => totalReadingTimeMinutes * 60;
+  double get readPercentage => progressPercentage;
+
+  // Helper method for updating progress
   void updateProgress() {
-    if (totalChapters > 0) {
-      progressPercentage = (currentChapter / totalChapters) * 100;
-
-      if (progressPercentage >= 95.0 && !isCompleted) {
-        isCompleted = true;
-        completedDate = DateTime.now();
-      }
+    lastReadDate = DateTime.now();
+    if (progressPercentage >= 0.99 && !isCompleted) {
+      isCompleted = true;
+      completedDate = DateTime.now();
     }
   }
-
-  String get formattedReadingTime {
-    if (totalReadingTimeMinutes < 60) {
-      return '${totalReadingTimeMinutes}m';
-    } else {
-      final hours = totalReadingTimeMinutes ~/ 60;
-      final minutes = totalReadingTimeMinutes % 60;
-      return '${hours}h ${minutes}m';
-    }
-  }
-
-  String get progressText => '${currentChapter + 1}/$totalChapters chapters';
 }

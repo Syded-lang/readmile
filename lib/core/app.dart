@@ -1,33 +1,28 @@
 import 'package:flutter/material.dart';
-import 'package:provider/provider.dart';
-import 'package:readmile/providers/book_provider.dart';
-import 'package:readmile/providers/reading_provider.dart';
-import 'package:readmile/providers/offline_provider.dart';
-import 'package:readmile/screens/splash/splash_screen.dart';
-import 'package:readmile/core/theme.dart';
+import 'theme.dart';
+import '../screens/home_screen.dart';
+import '../screens/offline/offline_books_screen.dart';
+import '../screens/splash/splash_screen.dart';
+import '../screens/settings/reading_settings_screen.dart';
 
 class ReadMileApp extends StatelessWidget {
-  const ReadMileApp({super.key});
+  const ReadMileApp({Key? key}) : super(key: key);
 
   @override
   Widget build(BuildContext context) {
-    return MultiProvider(
-      providers: [
-        ChangeNotifierProvider(create: (_) => BookProvider()),
-        ChangeNotifierProvider(create: (_) => ReadingProvider()),
-        ChangeNotifierProvider(create: (_) => OfflineProvider()),
-      ],
-      child: MaterialApp(
-        title: 'ReadMile',
-        debugShowCheckedModeBanner: false,
-        theme: AppTheme.lightTheme,
-        darkTheme: AppTheme.darkTheme,
-        themeMode: ThemeMode.system,
-        home: const SplashScreen(),
-        routes: {
-          '/home': (context) => const SplashScreen(),
-        },
-      ),
+    return MaterialApp(
+      title: 'ReadMile',
+      theme: AppTheme.lightTheme,
+      darkTheme: AppTheme.darkTheme,
+      themeMode: ThemeMode.system,
+      debugShowCheckedModeBanner: false,
+      initialRoute: '/',
+      routes: {
+        '/': (context) => const SplashScreen(),
+        '/home': (context) => const HomeScreen(),
+        '/offline': (context) => OfflineBooksScreen(),
+        '/settings': (context) => const ReadingSettingsScreen(),
+      },
     );
   }
 }

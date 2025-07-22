@@ -1,86 +1,91 @@
 import 'package:mongo_dart/mongo_dart.dart';
-import 'package:path_provider/path_provider.dart';
-import 'dart:typed_data';
-import 'dart:io';
+import 'package:readmile/models/book.dart';
+import 'package:readmile/core/constants.dart';
 
-class EpubService {
+class ApiService {
+  // CORRECTED: Include database name directly in connection string
   static const String _connectionString =
       'mongodb+srv://mikiemillsyded:Fishpoder123%23@readmile.igbtpmz.mongodb.net/library?retryWrites=true&w=majority&appName=ReadMile';
 
-  Future<String?> downloadEpubToTemp(String gridfsId, String filename) async {
+  static Future<List<Book>> fetchBooks() async {
+    Db? db;
     try {
-      print('📥 Using working EPUB chunking method...');
-      print('📁 GridFS ID: $gridfsId');
+      print('🔄 Connecting to library database directly...');
 
-      final db = await Db.create(_connectionString);
+      // Connect directly to the library database (no useDb needed)
+      db = await Db.create(_connectionString);
       await db.open();
 
-      final chunksCollection = db.collection('fs.chunks');
-      final objectId = ObjectId.fromHexString(gridfsId);
+      print('✅ Connected to MongoDB Atlas library database');
 
-      final cursor = chunksCollection.find(where.eq('files_id', objectId).sortBy('n'));
-      final chunks = await cursor.toList();
+      // Query the books collection directly
+      final collection = db.collection('books');
 
-      if (chunks.isEmpty) {
-        print('❌ No chunks found for GridFS ID: $gridfsId');
-        await db.close();
-        return null;
+      print('🔍 Querying books collection...');
+      final docs = await collection.find().toList();
+
+      print('📚 Found ${docs.length} books in collection');
+
+      // Debug: Print first document structure if available
+      if (docs.isNotEmpty) {
+        print('📄 Sample document keys: ${docs.first.keys.toList()}');
+        print('📄 Sample title: ${docs.first['title']}');
       }
 
-      print('📦 Found ${chunks.length} chunks (chunking method)');
-
-      List<int> allBytes = [];
-      for (var chunk in chunks) {
-        final data = chunk['data'];
-        if (data is BsonBinary) {
-          allBytes.addAll(data.byteList);
-        }
-      }
-
-      await db.close();
-
-      final tempDir = await getTemporaryDirectory();
-      final tempFile = File('${tempDir.path}/$filename');
-      await tempFile.writeAsBytes(allBytes);
-
-      print('✅ EPUB downloaded using chunking: ${tempFile.path}');
-      return tempFile.path;
+      return docs.map((doc) => Book.fromJson(doc)).toList();
 
     } catch (e) {
-      print('❌ EPUB chunking error: $e');
-      return null;
+      print('❌ MongoDB Error: $e');
+      return [];
+    } finally {
+      await db?.close();
     }
   }
 
-  // ADDED: Missing deleteTemp method
-  Future<void> deleteTemp(String filePath) async {
+  static Future<bool> testConnection() async {
+    Db? db;
     try {
-      final file = File(filePath);
-      if (await file.exists()) {
-        await file.delete();
-        print('🗑️ Deleted temp file: $filePath');
-      }
+      db = await Db.create(_connectionString);
+      await db.open();
+
+      // Test with a simple count query
+      final collection = db.collection('books');
+      final count = await collection.count();
+
+      print('✅ Connection test successful - found $count documents');
+      return true;
     } catch (e) {
-      print('⚠️ Error deleting temp file: $e');
+      print('❌ Connection test failed: $e');
+      return false;
+    } finally {
+      await db?.close();
     }
   }
 
-  Future<void> cleanupTempFiles() async {
+  // Debug method to verify database contents
+  static Future<void> debugDatabase() async {
+    Db? db;
     try {
-      final tempDir = await getTemporaryDirectory();
-      final readmileTempDir = Directory('${tempDir.path}/readmile_temp');
+      db = await Db.create(_connectionString);
+      await db.open();
 
-      if (await readmileTempDir.exists()) {
-        final files = await readmileTempDir.list().toList();
-        for (var file in files) {
-          if (file is File) {
-            await file.delete();
-          }
-        }
-        print('🧹 Cleaned up ${files.length} temp files');
+      final collection = db.collection('books');
+
+      // Get collection stats
+      final count = await collection.count();
+      print('📊 Total documents in books collection: $count');
+
+      // Get first few documents
+      final sampleDocs = await collection.find().take(3).toList();
+      print('📄 Sample documents:');
+      for (var doc in sampleDocs) {
+        print('  - ${doc['title']} by ${doc['author']}');
       }
+
     } catch (e) {
-      print('⚠️ Error cleaning up temp files: $e');
+      print('❌ Debug error: $e');
+    } finally {
+      await db?.close();
     }
   }
 }
